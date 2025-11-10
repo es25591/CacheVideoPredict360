@@ -1,0 +1,362 @@
+{
+  "version": "4.0.0a3",
+  "rt_params": {
+    "raytracer_name": "Remcom Wireless Insite",
+    "raytracer_version": "3.3",
+    "frequency": 3500000000.0,
+    "max_path_depth": 7,
+    "max_reflections": 6,
+    "max_diffractions": 1,
+    "max_scattering": 1,
+    "max_transmissions": 0,
+    "diffuse_reflections": 2,
+    "diffuse_diffractions": 1,
+    "diffuse_transmissions": 0,
+    "diffuse_final_interaction_only": true,
+    "diffuse_random_phases": false,
+    "terrain_reflection": true,
+    "terrain_diffraction": false,
+    "terrain_scattering": false,
+    "num_rays": 259200,
+    "ray_casting_method": "uniform",
+    "synthetic_array": true,
+    "ray_casting_range_az": 360.0,
+    "ray_casting_range_el": 180.0,
+    "raw_params": {
+      "antenna": {
+        "antenna": 1,
+        "type": "isotropic",
+        "waveform": 0,
+        "polarization": "vertical",
+        "power_threshold": -250,
+        "cable_loss": 0,
+        "VSWR": 1,
+        "component": "TotalGain",
+        "gain_range": 40,
+        "show_arrow": false,
+        "is_sphere": false
+      },
+      "waveform": {
+        "waveform": 0,
+        "frequencyDistribution": [
+          "Uniform",
+          500.0,
+          1500.0,
+          "inactive",
+          false,
+          10
+        ],
+        "CarrierFrequency": 3500000000.0,
+        "phase": 0.0,
+        "bandwidth": 100000000.0
+      },
+      "studyarea": {
+        "StudyAreaNumber": 2,
+        "partitioning": {
+          "name": "",
+          "kind": "",
+          "values": {
+            "partitioning_type": "disabled",
+            "queuing_type": "disabled",
+            "max_threads": 0,
+            "num_partitions": 2
+          },
+          "labels": [],
+          "data": []
+        },
+        "apg_acceleration": {
+          "name": "",
+          "kind": "",
+          "values": {
+            "enabled": true,
+            "workflow_mode": "full",
+            "binary_output_mode": "per_path_utm",
+            "binary_rate": [
+              0,
+              "active"
+            ],
+            "database_mode": "write",
+            "path_depth": 10,
+            "adjacency_distance": 10
+          },
+          "labels": [],
+          "data": []
+        },
+        "diffuse_scattering": {
+          "name": "",
+          "kind": "",
+          "values": {
+            "enabled": true,
+            "diffuse_reflections": 2,
+            "diffuse_diffractions": 1,
+            "diffuse_transmissions": 0,
+            "final_interaction_only": true
+          },
+          "labels": [],
+          "data": []
+        },
+        "autoboundary": 1,
+        "model": {
+          "name": "",
+          "kind": "",
+          "values": {
+            "num_threads": 20,
+            "initial_ray_mode": "uniform_sweep",
+            "foliage_model": 0,
+            "foliage_attenuation_vert": 1,
+            "foliage_attenuation_hor": 1,
+            "plane_wave_phase_reference": "automatic",
+            "max_reflections": 6,
+            "max_transmissions": 0,
+            "max_wedge_diffractions": 1,
+            "OutputRequests": {
+              "name": "",
+              "kind": "",
+              "values": {
+                "CEF": false,
+                "ComplexImpulseResponse": true,
+                "DelaySpread": false,
+                "DirectionOfArrival": true,
+                "DirectionOfDeparture": true,
+                "ElectroMagneticFields": false,
+                "FSPathloss": false,
+                "FSPower": false,
+                "MeanDirectionOfArrival": false,
+                "MeanDirectionOfDeparture": false,
+                "MeanTimeOfArrival": false,
+                "Pathloss": true,
+                "Paths": true,
+                "Power": false,
+                "TimeOfArrival": true,
+                "XPathloss": false
+              },
+              "labels": [],
+              "data": []
+            },
+            "ray_spacing": 0.25,
+            "terrain_diffractions": "No"
+          },
+          "labels": [
+            "x3d"
+          ],
+          "data": [
+            [
+              17.0749,
+              -22.7279,
+              13.6205
+            ]
+          ]
+        },
+        "boundary": {
+          "name": "",
+          "kind": "",
+          "values": {
+            "reference": {
+              "name": "",
+              "kind": "",
+              "values": {
+                "longitude": 0,
+                "latitude": 0,
+                "visible": false
+              },
+              "labels": [
+                "cartesian",
+                "terrain"
+              ],
+              "data": []
+            },
+            "zmin": -0.25,
+            "zmax": 27.4909896850586,
+            "nVertices": 4
+          },
+          "labels": [],
+          "data": [
+            [
+              -323.9248046875,
+              -285.705810546875,
+              0
+            ],
+            [
+              358.074584960938,
+              -285.705810546875,
+              0
+            ],
+            [
+              358.074584960938,
+              240.25,
+              0
+            ],
+            [
+              -323.9248046875,
+              240.25,
+              0
+            ]
+          ]
+        },
+        "MonteCarlo": {
+          "name": "",
+          "kind": "",
+          "values": {
+            "monte_carlo_updated": false,
+            "monte_carlo_active": false,
+            "monte_carlo_mean": true,
+            "monte_carlo_min": false,
+            "monte_carlo_max": false,
+            "monte_carlo_median": false,
+            "monte_carlo_sdev": false,
+            "monte_carlo_iterations": 10,
+            "monte_carlo_seed": 1
+          },
+          "labels": [],
+          "data": []
+        },
+        "MPE": {
+          "name": "",
+          "kind": "",
+          "values": {
+            "mpe_is_active": "inactive",
+            "mpestandard": "controlled",
+            "mpe_averaging_time": 300,
+            "mpe_averaging_time_short": 0.1,
+            "mpe_user_efield_peak": 100000,
+            "mpe_user_efield_rms": 61.4,
+            "mpe_user_hfield_rms": 0.163,
+            "mpe_user_power_short": 10,
+            "mpe_user_power": 2
+          },
+          "labels": [],
+          "data": []
+        }
+      },
+      "model": {
+        "num_threads": 20,
+        "initial_ray_mode": "uniform_sweep",
+        "foliage_model": 0,
+        "foliage_attenuation_vert": 1,
+        "foliage_attenuation_hor": 1,
+        "plane_wave_phase_reference": "automatic",
+        "max_reflections": 6,
+        "max_transmissions": 0,
+        "max_wedge_diffractions": 1,
+        "OutputRequests": {
+          "name": "",
+          "kind": "",
+          "values": {
+            "CEF": false,
+            "ComplexImpulseResponse": true,
+            "DelaySpread": false,
+            "DirectionOfArrival": true,
+            "DirectionOfDeparture": true,
+            "ElectroMagneticFields": false,
+            "FSPathloss": false,
+            "FSPower": false,
+            "MeanDirectionOfArrival": false,
+            "MeanDirectionOfDeparture": false,
+            "MeanTimeOfArrival": false,
+            "Pathloss": true,
+            "Paths": true,
+            "Power": false,
+            "TimeOfArrival": true,
+            "XPathloss": false
+          },
+          "labels": [],
+          "data": []
+        },
+        "ray_spacing": 0.25,
+        "terrain_diffractions": "No"
+      },
+      "apg_acceleration": {
+        "enabled": true,
+        "workflow_mode": "full",
+        "binary_output_mode": "per_path_utm",
+        "binary_rate": [
+          0,
+          "active"
+        ],
+        "database_mode": "write",
+        "path_depth": 10,
+        "adjacency_distance": 10
+      },
+      "diffuse_scattering": {
+        "enabled": true,
+        "diffuse_reflections": 2,
+        "diffuse_diffractions": 1,
+        "diffuse_transmissions": 0,
+        "final_interaction_only": true
+      }
+    }
+  },
+  "txrx_sets": {
+    "txrx_set_0": {
+      "name": "rx_grid",
+      "id_orig": 4,
+      "id": 0,
+      "is_tx": false,
+      "is_rx": true,
+      "num_points": 131931,
+      "num_active_points": 85157,
+      "num_ant": 1,
+      "dual_pol": false,
+      "ant_rel_positions": [
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "array_orientation": [
+        0,
+        0,
+        0
+      ]
+    },
+    "txrx_set_1": {
+      "name": "BS",
+      "id_orig": 1,
+      "id": 1,
+      "is_tx": true,
+      "is_rx": true,
+      "num_points": 1,
+      "num_active_points": 1,
+      "num_ant": 1,
+      "dual_pol": false,
+      "ant_rel_positions": [
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "array_orientation": [
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  "materials": {
+    "material_0": {
+      "id": 0,
+      "name": "ITU Concrete 3.5 GHz",
+      "permittivity": 5.31,
+      "conductivity": 0.08987,
+      "scattering_model": "directive",
+      "scattering_coefficient": 0.2,
+      "cross_polarization_coefficient": 0.4,
+      "alpha_r": 4.0,
+      "alpha_i": 4.0,
+      "lambda_param": 0.75,
+      "roughness": 0.0,
+      "thickness": 0.3,
+      "vertical_attenuation": 0.0,
+      "horizontal_attenuation": 0.0
+    }
+  },
+  "scene": {
+    "num_scenes": 1,
+    "n_objects": 36,
+    "n_vertices": 516,
+    "n_faces": 332,
+    "n_triangular_faces": 36
+  }
+}
