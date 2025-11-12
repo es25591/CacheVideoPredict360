@@ -2,3 +2,4 @@ gymnasium
 pandas
 numpy
 matplotlib
+opencv-python
