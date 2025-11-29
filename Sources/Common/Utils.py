@@ -56,3 +56,65 @@ def zipf(samples = None, total_videos = 10, alpha = 1.0):
     elements = [int(data[i]) for i in indices]
 
     return elements
+
+def poisson_per_time(total_time, rate_per_minute):
+    lam = rate_per_minute / 60
+
+    # Calculate the total number of events
+    total_events = int(total_time * rate_per_minute)
+
+    # Generate inter-event times
+    inter_event_times = np.random.exponential(1/lam, total_events)
+
+    return inter_event_times
+
+def poisson_global_times(total_time, rate_per_minute):
+
+    # Convert rate to events per second
+    lam = rate_per_minute / 60.0
+
+    # Calculate the expected total number of events
+    total_events = int(total_time * rate_per_minute)
+
+    # Generate inter-event times (in seconds) scale = 1/lambda
+    inter_event_times = np.random.exponential(scale=1.0/lam, size=total_events)
+
+    # Calculate global times by cumulatively summing inter-event times
+    global_times = np.cumsum(inter_event_times)
+    
+    return np.round(global_times).astype(int)
+
+def poisson_per_users(total_users, rate_per_minute):
+    lam = rate_per_minute / 60.0
+
+    if total_users <= 0:
+        return np.array([], dtype=int)
+
+    inter_event_times = np.random.exponential(scale=1.0/lam, size=total_users)
+
+    global_times = np.cumsum(inter_event_times)
+
+    return np.round(global_times).astype(int)
+
+
+if __name__ == "__main__":
+    # Example usage
+    center_yaw = 110
+    center_pitch = 50
+    required_tiles = get_required_tiles(
+        center_yaw, center_pitch, n=8, fov_yaw=90, fov_pitch=90
+    )
+    
+    print("Required Tiles:", required_tiles)
+
+    # zipf_samples = zipf(samples=20, total_videos=10, alpha=1.0)
+    # print("Zipf Samples:", zipf_samples)
+
+    poisson_times = poisson_per_time(total_time=2, rate_per_minute=10)
+    print("Poisson Inter-Event Times:", poisson_times)
+
+    global_times = poisson_global_times(total_time=2, rate_per_minute=10)
+    print("Poisson Global Timestamps (sec):", global_times, len(global_times))
+
+    poisson_user_counts = poisson_per_users(total_users=10, rate_per_minute=5)
+    print("Poisson User Counts:", poisson_user_counts)
