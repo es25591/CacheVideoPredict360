@@ -2,6 +2,8 @@ import csv
 import os
 import numpy as np
 
+from collections import Counter
+
 def get_required_tiles(center_yaw, center_pitch, n=12, fov_yaw=90.0, fov_pitch=90.0):
     """
     Given a center yaw and pitch, compute the required tiles.
@@ -130,16 +132,19 @@ if __name__ == "__main__":
         center_yaw, center_pitch, n=8, fov_yaw=90, fov_pitch=90
     )
     
-    print("Required Tiles:", required_tiles)
+    # print("Required Tiles:", required_tiles)
 
-    # zipf_samples = zipf(samples=20, total_videos=10, alpha=1.0)
-    # print("Zipf Samples:", zipf_samples)
+    zipf_samples = zipf(samples=200, total_videos=100, alpha=1.0)
+    print("Zipf Samples:", zipf_samples)
 
-    poisson_times = poisson_per_time(total_time=2, rate_per_minute=10)
-    print("Poisson Inter-Event Times:", poisson_times)
+    counter = Counter(zipf_samples)
+    print("Sample Counts:", counter)
 
-    global_times = poisson_global_times(total_time=2, rate_per_minute=10)
-    print("Poisson Global Timestamps (sec):", global_times, len(global_times))
+    # poisson_times = poisson_per_time(total_time=2, rate_per_minute=10)
+    # print("Poisson Inter-Event Times:", poisson_times)
 
-    poisson_user_counts = poisson_per_users(total_users=10, rate_per_minute=5)
-    print("Poisson User Counts:", poisson_user_counts)
+    # global_times = poisson_global_times(total_time=2, rate_per_minute=10)
+    # print("Poisson Global Timestamps (sec):", global_times, len(global_times))
+
+    # poisson_user_counts = poisson_per_users(total_users=10, rate_per_minute=5)
+    # print("Poisson User Counts:", poisson_user_counts)
