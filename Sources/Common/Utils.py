@@ -1,5 +1,6 @@
+import csv
+import os
 import numpy as np
-
 
 def get_required_tiles(center_yaw, center_pitch, n=12, fov_yaw=90.0, fov_pitch=90.0):
     """
@@ -95,6 +96,30 @@ def poisson_per_users(total_users, rate_per_minute):
     global_times = np.cumsum(inter_event_times)
 
     return np.round(global_times).astype(int)
+
+def save_training_results(
+    path_,
+    filename,
+    ep, 
+    total_reward, 
+    cache_hits, 
+    cache_misses, 
+    agent
+):
+    with open(os.path.join(path_, filename), 'a', newline='') as f:
+        fieldnames = ['episode', 'total_reward', 'cache_hits', 'cache_misses', 'epsilon']
+        writer_results = csv.DictWriter(f, fieldnames=fieldnames)
+
+        if ep == 0:
+            writer_results.writeheader()
+        
+        writer_results.writerow({
+            'episode': ep,
+            'total_reward': total_reward,
+            'cache_hits': cache_hits,
+            'cache_misses': cache_misses,
+            'epsilon': agent.epsilon
+        })
 
 
 if __name__ == "__main__":
