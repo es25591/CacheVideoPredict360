@@ -152,7 +152,7 @@ if __name__ == "__main__":
     
     # print("Required Tiles:", required_tiles)
 
-    zipf_samples = zipf(samples=200, total_videos=100, alpha=1.0)
+    zipf_samples = zipf(samples=100, total_videos=1000, alpha=2.0)
     print("Zipf Samples:", zipf_samples)
 
     counter = Counter(zipf_samples)
