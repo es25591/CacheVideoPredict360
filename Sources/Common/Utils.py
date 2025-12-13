@@ -106,10 +106,24 @@ def save_training_results(
     total_reward, 
     cache_hits, 
     cache_misses, 
+    enhanced_layer_cache_hits,
+    enhanced_layer_cache_misses,
+    base_layer_cache_hits,
+    base_layer_cache_misses,
     agent
 ):
     with open(os.path.join(path_, filename), 'a', newline='') as f:
-        fieldnames = ['episode', 'total_reward', 'cache_hits', 'cache_misses', 'epsilon']
+        fieldnames = [
+            'episode', 
+            'total_reward', 
+            'cache_hits', 
+            'cache_misses', 
+            'enhanced_layer_cache_hits', 
+            'enhanced_layer_cache_misses',
+            'base_layer_cache_hits', 
+            'base_layer_cache_misses', 
+            'epsilon'
+        ]
         writer_results = csv.DictWriter(f, fieldnames=fieldnames)
 
         if ep == 0:
@@ -120,6 +134,10 @@ def save_training_results(
             'total_reward': total_reward,
             'cache_hits': cache_hits,
             'cache_misses': cache_misses,
+            'enhanced_layer_cache_hits': enhanced_layer_cache_hits,
+            'enhanced_layer_cache_misses': enhanced_layer_cache_misses,
+            'base_layer_cache_hits': base_layer_cache_hits,
+            'base_layer_cache_misses': base_layer_cache_misses,
             'epsilon': agent.epsilon
         })
 
