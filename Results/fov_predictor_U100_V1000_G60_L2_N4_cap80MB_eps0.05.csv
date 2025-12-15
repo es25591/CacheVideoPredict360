@@ -23,3 +23,6 @@ episode,total_reward,cache_hits,cache_misses,enhanced_layer_cache_hits,enhanced_
 0,-46795.6631427259,0,120797,0,24797,0,96000,0.99
 1,-46049.44263323954,0,120878,0,24878,0,96000,0.9801
 2,-45187.05363898374,0,120822,0,24822,0,96000,0.9702989999999999
+episode,total_reward,cache_hits,cache_misses,enhanced_layer_cache_hits,enhanced_layer_cache_misses,base_layer_cache_hits,base_layer_cache_misses,epsilon
+0,1247.3635137631284,96551,24188,11278,13461,85273,10727,0.99
+1,3690.398074333158,102187,18776,12219,12744,89968,6032,0.9801
