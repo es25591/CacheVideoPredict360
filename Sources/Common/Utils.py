@@ -110,6 +110,7 @@ def save_training_results(
     enhanced_layer_cache_misses,
     base_layer_cache_hits,
     base_layer_cache_misses,
+    avg_psnr,
     agent
 ):
     with open(os.path.join(path_, filename), 'a', newline='') as f:
@@ -122,6 +123,7 @@ def save_training_results(
             'enhanced_layer_cache_misses',
             'base_layer_cache_hits', 
             'base_layer_cache_misses', 
+            'average_psnr',
             'epsilon'
         ]
         writer_results = csv.DictWriter(f, fieldnames=fieldnames)
@@ -138,6 +140,7 @@ def save_training_results(
             'enhanced_layer_cache_misses': enhanced_layer_cache_misses,
             'base_layer_cache_hits': base_layer_cache_hits,
             'base_layer_cache_misses': base_layer_cache_misses,
+            'average_psnr': avg_psnr,
             'epsilon': agent.epsilon
         })
 
