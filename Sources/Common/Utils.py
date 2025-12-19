@@ -141,7 +141,7 @@ def save_training_results(
             'base_layer_cache_hits': base_layer_cache_hits,
             'base_layer_cache_misses': base_layer_cache_misses,
             'average_psnr': avg_psnr,
-            'epsilon': agent.epsilon
+            'epsilon': agent.epsilon if agent else None
         })
 
 
