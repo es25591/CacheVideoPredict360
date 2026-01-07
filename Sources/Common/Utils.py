@@ -152,14 +152,29 @@ if __name__ == "__main__":
     required_tiles = get_required_tiles(
         center_yaw, center_pitch, n=8, fov_yaw=90, fov_pitch=90
     )
-    
+
     # print("Required Tiles:", required_tiles)
 
-    zipf_samples = zipf(samples=100, total_videos=1000, alpha=2.0)
+    zipf_samples = zipf(samples=200, total_videos=500, alpha=1.0)
     print("Zipf Samples:", zipf_samples)
 
     counter = Counter(zipf_samples)
     print("Sample Counts:", counter)
+
+    # zipf_samples = zipf(samples=100, total_videos=1000, alpha=2.0)
+    # print("Zipf Samples:", zipf_samples)
+
+    probabilities = [x / sum(counter.values()) for x in counter.values()]
+
+    chosen_probabilities = sorted(
+        [(video_id, prob * 100) for video_id, prob in zip(counter.keys(), probabilities)],
+        key=lambda x: x[1],
+        reverse=True
+    )
+
+    print("Video Choice Probabilities for Chosen Videos:")
+    for i, (video_id, prob) in enumerate(chosen_probabilities):
+        print(f"  {i+1}. Video {video_id}: {prob:.1f}% (chosen {counter[video_id]} times)")
 
     # poisson_times = poisson_per_time(total_time=2, rate_per_minute=10)
     # print("Poisson Inter-Event Times:", poisson_times)
