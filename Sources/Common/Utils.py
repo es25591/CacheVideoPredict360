@@ -99,6 +99,18 @@ def poisson_per_users(total_users, rate_per_minute):
 
     return np.round(global_times).astype(int)
 
+def poisson_per_video_requests(total_requests, rate_per_minute):
+    lam = rate_per_minute / 60.0
+
+    if total_requests <= 0:
+        return np.array([], dtype=int)
+
+    inter_event_times = np.random.exponential(scale=1.0/lam, size=total_requests)
+
+    global_times = np.cumsum(inter_event_times)
+
+    return np.round(global_times).astype(int)
+
 def save_training_results(
     path_,
     filename,
