@@ -109,7 +109,7 @@ def poisson_per_video_requests(total_requests, rate_per_minute):
 
     global_times = np.cumsum(inter_event_times)
 
-    return np.round(global_times).astype(int)
+    return global_times
 
 def save_training_results(
     path_,
