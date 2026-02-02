@@ -30,7 +30,7 @@ class Config:
     learning_rate: float = 1e-3
     learning_rate_decay: float = 0.9999
 
-    tau: float = 0.005
+    tau: float = 0.01
     gamma: float = 0.6 
     batch_size: int = 32
     buffer_capacity: int = 2000
@@ -44,14 +44,15 @@ class Config:
     lam: float = 3.7183
 
     # Paths for data and results
-    path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
-    path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
+
+    path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
+    path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
+
+    # path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
+    # path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
 
     filename: str = f"drl_ddqn_lrdecay{learning_rate_decay}_c{cache_size}_ar{arrival_rate}_z{zipf_alpha}.csv"
     filename: str = f"drl_ddqn_fixedlr{learning_rate}_c{cache_size}_ar{arrival_rate}_z{zipf_alpha}.csv"
-
-    # path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
-    # path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
 
     @property
     def state_dim(self) -> int: # 10*C + 2 = (2C + 2Ck) * 2 + 2 (Section VI-A)
