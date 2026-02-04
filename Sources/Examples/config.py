@@ -1,6 +1,7 @@
 # --- 1. CONFIGURATION & HYPERPARAMETERS (Section VII-B) ---
 class Config:
-    n_episodes: int = 300
+    n_episodes: int = 100
+    max_steps: int = 10000
     n_nodes: int = 3
     n_users: int = 200
     step_size: float = 10.0
@@ -18,7 +19,7 @@ class Config:
     enh_layer_size: float = 1.5e+7  # 15 MB
     total_video_size: float = n_videos * n_gops * bas_layer_size + n_videos * viewport * (enh_layer_size / n_tiles)  # 252 GB
 
-    cache_capacity_percent: float = 0.05  # 10% of the total video size
+    cache_capacity_percent: float = 0.1  # 10% of the total video size
     cache_capacity: float = cache_capacity_percent * total_video_size
     cache_size: int = int(n_videos * cache_capacity_percent)
 

@@ -178,7 +178,7 @@ def zipf_sampler(total_videos=10, alpha=1.0, seed=None):
 
 
 if __name__ == "__main__":
-    # Example usage
+
     center_yaw = 110
     center_pitch = 50
 
