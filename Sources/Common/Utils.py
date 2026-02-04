@@ -49,17 +49,6 @@ def get_required_tiles(center_yaw, center_pitch, n=12, fov_yaw=90.0, fov_pitch=9
 
     return list(required_tiles)
 
-def zipf(samples = None, total_videos = 10, alpha = 1.0):
-    zipf_dist = [1.0 / (i ** alpha) for i in range(1, total_videos + 1)]
-    zipf_dist = [x / sum(zipf_dist) for x in zipf_dist]
-
-    indices = np.random.choice(total_videos, samples, p=zipf_dist)
-    data = np.random.permutation(np.arange(1, total_videos + 1))
-
-    elements = [int(data[i]) for i in indices]
-
-    return elements
-
 def poisson_per_time(total_time, rate_per_minute):
     lam = rate_per_minute / 60
 
@@ -111,6 +100,19 @@ def poisson_per_video_requests(total_requests, rate_per_minute):
 
     return global_times
 
+
+
+def zipf(samples = None, total_videos = 10, alpha = 1.0):
+    zipf_dist = [1.0 / (i ** alpha) for i in range(1, total_videos + 1)]
+    zipf_dist = [x / sum(zipf_dist) for x in zipf_dist]
+
+    indices = np.random.choice(total_videos, samples, p=zipf_dist)
+    data = np.random.permutation(np.arange(1, total_videos + 1))
+
+    elements = [int(data[i]) for i in indices]
+
+    return elements
+
 def save_training_results(
     path_,
     filename,
@@ -145,22 +147,41 @@ def save_training_results(
         
         writer_results.writerow({
             'episode': ep,
-            'total_reward': total_reward,
+            'total_reward': round(float(total_reward), 2),
             'cache_hits': cache_hits,
             'cache_misses': cache_misses,
             'enhanced_layer_cache_hits': enhanced_layer_cache_hits,
             'enhanced_layer_cache_misses': enhanced_layer_cache_misses,
             'base_layer_cache_hits': base_layer_cache_hits,
             'base_layer_cache_misses': base_layer_cache_misses,
-            'average_psnr': avg_psnr,
-            'epsilon': agent.epsilon if agent else None
+            'average_psnr': round(float(avg_psnr), 2),
+            'epsilon': round(float(agent.epsilon), 2) if agent else None
         })
+
+class ZipfSampler:
+    def __init__(self, total_videos=10, alpha=1.0, seed=None):
+        self.total_videos = total_videos
+        self.alpha = alpha
+        self.rng = np.random.default_rng(seed)
+
+        zipf_dist = [1.0 / (i ** alpha) for i in range(1, total_videos + 1)]
+        s = sum(zipf_dist)
+        self.zipf_dist = [x / s for x in zipf_dist]
+        self.data = np.arange(1, total_videos + 1)
+
+    def __call__(self):
+        idx = self.rng.choice(self.total_videos, p=self.zipf_dist)
+        return int(self.data[idx])
+
+def zipf_sampler(total_videos=10, alpha=1.0, seed=None):
+    return ZipfSampler(total_videos=total_videos, alpha=alpha, seed=seed)
 
 
 if __name__ == "__main__":
     # Example usage
     center_yaw = 110
     center_pitch = 50
+
     required_tiles = get_required_tiles(
         center_yaw, center_pitch, n=8, fov_yaw=90, fov_pitch=90
     )
@@ -196,3 +217,10 @@ if __name__ == "__main__":
 
     # poisson_user_counts = poisson_per_users(total_users=10, rate_per_minute=5)
     # print("Poisson User Counts:", poisson_user_counts)
+
+    sampler = zipf_sampler(total_videos=10, alpha=1.0, seed=None)
+    zipf_samples = [sampler() for _ in range(500)]
+    print("Zipf Samples (500):", zipf_samples)
+
+    counter = Counter(zipf_samples)
+    print("Sample Counts:", counter)
