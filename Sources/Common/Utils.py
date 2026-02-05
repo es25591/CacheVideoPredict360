@@ -198,10 +198,3 @@ if __name__ == "__main__":
 
     # poisson_user_counts = poisson_per_users(total_users=10, rate_per_minute=5)
     # print("Poisson User Counts:", poisson_user_counts)
-
-    sampler = zipf_sampler(total_videos=10, alpha=1.0, seed=None)
-    zipf_samples = [sampler() for _ in range(500)]
-    print("Zipf Samples (500):", zipf_samples)
-
-    counter = Counter(zipf_samples)
-    print("Sample Counts:", counter)

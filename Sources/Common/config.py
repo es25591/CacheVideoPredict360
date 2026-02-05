@@ -5,7 +5,7 @@ class Config:
     n_nodes: int = 3
     n_users: int = 400
     step_size: float = 10.0
-    arrival_rate: float = 20.0  # users per second
+    arrival_rate: float = 10.0  # users per second
     zipf_alpha: float = 0.8
     n_videos: int = 500
     n_gops: int = 30
