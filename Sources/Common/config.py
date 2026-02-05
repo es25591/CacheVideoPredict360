@@ -1,12 +1,12 @@
 # --- 1. CONFIGURATION & HYPERPARAMETERS (Section VII-B) ---
 class Config:
-    n_episodes: int = 100
+    n_episodes: int = 500
     max_steps: int = 10000
     n_nodes: int = 3
-    n_users: int = 200
+    n_users: int = 400
     step_size: float = 10.0
-    arrival_rate: float = 10.0  # users per second
-    zipf_alpha: float = 1.0
+    arrival_rate: float = 20.0  # users per second
+    zipf_alpha: float = 0.8
     n_videos: int = 500
     n_gops: int = 30
     n_layers: int = 2
@@ -17,7 +17,7 @@ class Config:
 
     bas_layer_size: float = 2.0e+6  # 2 MB
     enh_layer_size: float = 1.5e+7  # 15 MB
-    total_video_size: float = n_videos * n_gops * bas_layer_size + n_videos * viewport * (enh_layer_size / n_tiles)  # 252 GB
+    total_video_size: float = n_videos * n_gops * (bas_layer_size  + viewport * (enh_layer_size / n_tiles))  # total size of all videos in bytes
 
     cache_capacity_percent: float = 0.1  # 10% of the total video size
     cache_capacity: float = cache_capacity_percent * total_video_size
@@ -56,3 +56,4 @@ class Config:
     
     state_dim: int = 10 * cache_size + 2 # 10*C + 2 = (2C + 2Ck) * 2 + 2 (Section VI-A)
     action_dim: int = 2  # 0 = Pass, 1 = Cache
+

@@ -120,11 +120,7 @@ def save_training_results(
     total_reward, 
     cache_hits, 
     cache_misses, 
-    enhanced_layer_cache_hits,
-    enhanced_layer_cache_misses,
-    base_layer_cache_hits,
-    base_layer_cache_misses,
-    avg_psnr,
+    soft_hits,
     agent
 ):
     with open(os.path.join(path_, filename), 'a', newline='') as f:
@@ -133,12 +129,9 @@ def save_training_results(
             'total_reward', 
             'cache_hits', 
             'cache_misses', 
-            'enhanced_layer_cache_hits', 
-            'enhanced_layer_cache_misses',
-            'base_layer_cache_hits', 
-            'base_layer_cache_misses', 
-            'average_psnr',
-            'epsilon'
+            'soft_hits',
+            'epsilon',
+            'lr'
         ]
         writer_results = csv.DictWriter(f, fieldnames=fieldnames)
 
@@ -150,31 +143,19 @@ def save_training_results(
             'total_reward': round(float(total_reward), 2),
             'cache_hits': cache_hits,
             'cache_misses': cache_misses,
-            'enhanced_layer_cache_hits': enhanced_layer_cache_hits,
-            'enhanced_layer_cache_misses': enhanced_layer_cache_misses,
-            'base_layer_cache_hits': base_layer_cache_hits,
-            'base_layer_cache_misses': base_layer_cache_misses,
-            'average_psnr': round(float(avg_psnr), 2),
-            'epsilon': round(float(agent.epsilon), 2) if agent else None
+            'soft_hits': soft_hits,
+            'lr': f"{agent.scheduler.get_last_lr()[0]:.10f}" if agent else None,
+            'epsilon': round(float(agent.epsilon), 4) if agent else None
         })
 
-class ZipfSampler:
-    def __init__(self, total_videos=10, alpha=1.0, seed=None):
-        self.total_videos = total_videos
-        self.alpha = alpha
-        self.rng = np.random.default_rng(seed)
+def update_metrics(info: dict, reward: float) -> tuple[float, int, int, float]:
+    enh_hits = info.get("enh_layer_cache_hits", 0)
+    base_hits = info.get("base_layer_cache_hits", 0)
+    enh_misses = info.get("enh_layer_cache_misses", 0)
+    base_misses = info.get("base_layer_cache_misses", 0)
+    soft_hits = info.get("soft_hits", 0.0)
 
-        zipf_dist = [1.0 / (i ** alpha) for i in range(1, total_videos + 1)]
-        s = sum(zipf_dist)
-        self.zipf_dist = [x / s for x in zipf_dist]
-        self.data = np.arange(1, total_videos + 1)
-
-    def __call__(self):
-        idx = self.rng.choice(self.total_videos, p=self.zipf_dist)
-        return int(self.data[idx])
-
-def zipf_sampler(total_videos=10, alpha=1.0, seed=None):
-    return ZipfSampler(total_videos=total_videos, alpha=alpha, seed=seed)
+    return reward, (enh_hits + base_hits), (enh_misses + base_misses), soft_hits
 
 
 if __name__ == "__main__":
