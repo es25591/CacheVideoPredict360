@@ -3,9 +3,9 @@ class Config:
     n_episodes: int = 500
     max_steps: int = 10000
     n_nodes: int = 3
-    n_users: int = 400
+    n_users: int = 200
     step_size: float = 10.0
-    arrival_rate: float = 10.0  # users per second
+    arrival_rate: float = 20.0  # users per second
     zipf_alpha: float = 0.8
     n_videos: int = 500
     n_gops: int = 30
@@ -21,7 +21,7 @@ class Config:
 
     cache_capacity_percent: float = 0.1  # 10% of the total video size
     cache_capacity: float = cache_capacity_percent * total_video_size
-    cache_size: int = int(n_videos * cache_capacity_percent)
+    cache_size: int = int(cache_capacity_percent * n_videos)
 
     # Hyperparameters for RL
     epsilon_start: float = 1.0
@@ -46,11 +46,13 @@ class Config:
 
     # Paths for data and results
 
-    # path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
-    # path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
+    path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
+    path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
+    path_trajectories: str = '/home/eduardo/Workspace/CacheVideoPredict360/Dataset/Trajectories'
 
-    path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
-    path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
+    # path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
+    # path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
+    # path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset\Trajectories'
 
     filename: str = f"drl_dqn_lrdecay{learning_rate_decay}_c{cache_size}_ar{arrival_rate}_z{zipf_alpha}.csv"
     
