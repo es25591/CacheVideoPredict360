@@ -14,6 +14,7 @@ class Config:
     m: int = 3
     n_tiles: int = n * m
     viewport: int = 4
+    T_chunk_default: float = 1.0  # default chunk deadline in seconds
 
     bas_layer_size: float = 2.0e+6  # 2 MB
     enh_layer_size: float = 1.5e+7  # 15 MB
@@ -46,13 +47,13 @@ class Config:
 
     # Paths for data and results
 
-    path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
-    path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
-    path_trajectories: str = '/home/eduardo/Workspace/CacheVideoPredict360/Dataset/Trajectories'
+    # path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
+    # path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
+    # path_trajectories: str = '/home/eduardo/Workspace/CacheVideoPredict360/Dataset/Trajectories'
 
-    # path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
-    # path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
-    # path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset\Trajectories'
+    path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
+    path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
+    path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset\Trajectories'
 
     filename: str = f"drl_dqn_lrdecay{learning_rate_decay}_c{cache_size}_ar{arrival_rate}_z{zipf_alpha}.csv"
     

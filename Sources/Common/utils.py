@@ -149,10 +149,10 @@ def save_training_results(
         })
 
 def update_metrics(info: dict, reward: float) -> tuple[float, int, int, float]:
-    enh_hits = info.get("enh_layer_cache_hits", 0)
-    base_hits = info.get("base_layer_cache_hits", 0)
-    enh_misses = info.get("enh_layer_cache_misses", 0)
-    base_misses = info.get("base_layer_cache_misses", 0)
+    enh_hits = info.get("enh_layer_hits", 0)
+    base_hits = info.get("base_layer_hits", 0)
+    enh_misses = info.get("enh_layer_misses", 0)
+    base_misses = info.get("base_layer_misses", 0)
     soft_hits = info.get("soft_hits", 0.0)
 
     return reward, (enh_hits + base_hits), (enh_misses + base_misses), soft_hits
