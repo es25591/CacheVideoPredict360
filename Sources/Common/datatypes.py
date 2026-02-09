@@ -11,7 +11,7 @@ Design pattern:
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, IntEnum
 from typing import Any, Dict, Tuple, List
 import numpy as np
 
@@ -23,6 +23,9 @@ import numpy as np
 
 CacheKey = Tuple[int, int, int, int]   # (video_id, layer_id, tile_id, gop_id)
 
+class LayerType(IntEnum):
+    BASE = 0
+    ENHANCEMENT = 1
 
 @dataclass(frozen=True)
 class TileID:
