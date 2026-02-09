@@ -59,6 +59,7 @@ class UserTransition:
         reward: Reward obtained after transition
     """
     state: Any
+    next_state: Any
     action: int
     reward: float
 
