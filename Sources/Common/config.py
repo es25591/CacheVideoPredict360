@@ -1,6 +1,6 @@
 # --- 1. CONFIGURATION & HYPERPARAMETERS (Section VII-B) ---
 class Config:
-    n_episodes: int = 400
+    n_episodes: int = 300
     max_steps: int = 10000
     n_nodes: int = 3
     n_users: int = 500
@@ -30,13 +30,13 @@ class Config:
     epsilon_decay: float = (epsilon_min / epsilon_start) ** (1.0 / n_episodes) # 0.987
 
     learning_rate: float = 1e-3
-    learning_rate_decay: float = 0.9999
+    learning_rate_decay: float = 0.999
 
     tau: float = 0.01
     gamma: float = 0.6
     batch_size: int = 32
     buffer_capacity: int = 2000
-    nb_interval: int = 200  # interval to update target network
+    nb_interval: int = 100  # interval to update target network
 
     h_short: int = 300   # sliding windows for popularity (Section VI-A)
     h_long: int = 1000
@@ -47,13 +47,13 @@ class Config:
 
     # Paths for data and results
 
-    path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
-    path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
-    path_trajectories: str = '/home/eduardo/Workspace/CacheVideoPredict360/Dataset/Trajectories'
+    # path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
+    # path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
+    # path_trajectories: str = '/home/eduardo/Workspace/CacheVideoPredict360/Dataset/Trajectories'
 
-    # path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
-    # path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
-    # path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset\Trajectories'
+    path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
+    path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
+    path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset\Trajectories'
 
     filename: str = f"drl_dqn_lrdecay{learning_rate_decay}_c{cache_size}_ar{arrival_rate}_z{zipf_alpha}.csv"
     
