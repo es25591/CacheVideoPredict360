@@ -1,4 +1,7 @@
 # --- 1. CONFIGURATION & HYPERPARAMETERS (Section VII-B) ---
+from dataclasses import dataclass
+
+
 class Config:
     n_episodes: int = 300
     max_steps: int = 10000
@@ -60,3 +63,35 @@ class Config:
     state_dim: int = 10 * cache_size + 2 # 10*C + 2 = (2C + 2Ck) * 2 + 2 (Section VI-A)
     action_dim: int = 2  # 0 = Pass, 1 = Cache
 
+
+
+@dataclass
+class MetaConfig:
+    state_dim: int
+    num_goals: int = 50 + 1
+    gamma: float = 0.99
+    lr: float = 1e-3
+    epsilon_start: float = 1.0
+    epsilon_end: float = 0.05
+    epsilon_decay: float = 0.995
+    buffer_size: int = 100_000
+    batch_size: int = 64
+    target_update_freq: int = 1000  # in meta steps
+    
+
+# -----------------------------
+# Controller (Low-level)
+# -----------------------------
+@dataclass
+class ControllerConfig:
+    state_dim: int
+    num_goals: int = 50 + 1           # capacity objects + 1 global goal
+    num_low_actions: int = 5                # 4 per-object + 1 global
+    gamma: float = 0.99
+    lr: float = 1e-3
+    epsilon_start: float = 1.0
+    epsilon_end: float = 0.05
+    epsilon_decay: float = 0.995
+    buffer_size: int = 100_000
+    batch_size: int = 64
+    target_update_freq: int = 200  # in low-level steps

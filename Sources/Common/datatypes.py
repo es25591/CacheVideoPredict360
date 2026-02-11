@@ -65,6 +65,21 @@ class UserTransition:
 
 
 @dataclass
+class TransitionTuple:
+    """
+    Represents a single RL transition tuple (state, action, reward, next_state).
+    Attributes:
+        state:  Observation before action
+        action: The integer-coded action taken by the agent
+        reward: Reward obtained after transition
+    """
+    state: Any
+    next_state: Any
+    action: int
+    reward: float
+
+
+@dataclass
 class UserRequest:
     """
     A request issued by a user for a group of tiles.
