@@ -30,10 +30,10 @@ class Config:
     # Hyperparameters for RL
     epsilon_start: float = 1.0
     epsilon_min: float = 0.05
-    epsilon_decay: float = (epsilon_min / epsilon_start) ** (1.0 / n_episodes) # 0.987
-
+    epsilon_decay: float = 0.985 # (epsilon_min / epsilon_start) ** (1.0 / n_episodes)
+    
     learning_rate: float = 1e-3
-    learning_rate_decay: float = 0.999
+    learning_rate_decay: float = 0.9999
 
     tau: float = 0.01
     gamma: float = 0.6
@@ -62,36 +62,6 @@ class Config:
     
     state_dim: int = 10 * cache_size + 2 # 10*C + 2 = (2C + 2Ck) * 2 + 2 (Section VI-A)
     action_dim: int = 2  # 0 = Pass, 1 = Cache
-
-
-
-@dataclass
-class MetaConfig:
-    state_dim: int
-    num_goals: int = 50 + 1
-    gamma: float = 0.99
-    lr: float = 1e-3
-    epsilon_start: float = 1.0
-    epsilon_end: float = 0.05
-    epsilon_decay: float = 0.995
-    buffer_size: int = 100_000
-    batch_size: int = 64
-    target_update_freq: int = 1000  # in meta steps
     
-
-# -----------------------------
-# Controller (Low-level)
-# -----------------------------
-@dataclass
-class ControllerConfig:
-    state_dim: int
-    num_goals: int = 50 + 1           # capacity objects + 1 global goal
-    num_low_actions: int = 5                # 4 per-object + 1 global
-    gamma: float = 0.99
-    lr: float = 1e-3
-    epsilon_start: float = 1.0
-    epsilon_end: float = 0.05
-    epsilon_decay: float = 0.995
-    buffer_size: int = 100_000
-    batch_size: int = 64
-    target_update_freq: int = 200  # in low-level steps
+    num_goals = cache_size + 1
+    num_low_actions = 4

@@ -77,6 +77,7 @@ class TransitionTuple:
     next_state: Any
     action: int
     reward: float
+    done: bool = False
 
 
 @dataclass
