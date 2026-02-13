@@ -1,6 +1,0 @@
-episode,total_reward,cache_hits,cache_misses,soft_hits,epsilon,lr
-0,23729.33,138209,27967,0.0,,
-1,22956.55,141663,23265,0.0,,
-2,24493.15,141690,20774,0.0,,
-episode,total_reward,cache_hits,cache_misses,soft_hits,epsilon,lr
-0,23925.83,136068,20604,0.0,,
