@@ -23,17 +23,17 @@ class Config:
     enh_layer_size: float = 1.5e+7  # 15 MB
     total_video_size: float = n_videos * n_gops * (bas_layer_size  + viewport * (enh_layer_size / n_tiles))  # total size of all videos in bytes
 
-    cache_capacity_percent: float = 0.1  # 10% of the total video size
+    cache_capacity_percent: float = 0.2  # 20% of the total video size
     cache_capacity: float = cache_capacity_percent * total_video_size
     cache_size: int = int(cache_capacity_percent * n_videos)
 
     # Hyperparameters for RL
     epsilon_start: float = 1.0
     epsilon_min: float = 0.05
-    epsilon_decay: float = 0.95 # (epsilon_min / epsilon_start) ** (1.0 / n_episodes)
+    epsilon_decay: float = 0.98 # (epsilon_min / epsilon_start) ** (1.0 / n_episodes)
     
     learning_rate: float = 1e-3
-    learning_rate_decay: float = 0.9995
+    learning_rate_decay: float = 0.9999
 
     tau: float = 0.01
     gamma: float = 0.6
@@ -50,13 +50,13 @@ class Config:
 
     # Paths for data and results
 
-    # path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
-    # path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
-    # path_trajectories: str = '/home/eduardo/Workspace/CacheVideoPredict360/Dataset/Trajectories'
+    path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
+    path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
+    path_trajectories: str = '/home/eduardo/Workspace/CacheVideoPredict360/Dataset/Trajectories'
 
-    path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
-    path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
-    path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset\Trajectories'
+    # path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
+    # path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
+    # path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset\Trajectories'
 
     filename: str = f"drl_dqn_lrdecay{learning_rate_decay}_c{cache_size}_ar{arrival_rate}_z{zipf_alpha}.csv"
     
