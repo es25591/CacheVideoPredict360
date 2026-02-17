@@ -22,7 +22,7 @@ class Config:
     enh_layer_size: float = 1.5e+7  # 15 MB
     total_video_size: float = n_videos * n_gops * (bas_layer_size  + viewport * (enh_layer_size / n_tiles))  # total size of all videos in bytes
 
-    cache_capacity_percent: float = 0.2  # 10% of the total video size
+    cache_capacity_percent: float = 0.1  # 10% of the total video size
     cache_capacity: float = cache_capacity_percent * total_video_size
     cache_size: int = int(cache_capacity_percent * n_videos)
 
@@ -30,12 +30,14 @@ class Config:
     epsilon_start: float = 1.0
     epsilon_min: float = 0.05
     epsilon_decay: float = 0.98 # (epsilon_min / epsilon_start) ** (1.0 / n_episodes)
+    entropy_coef: float = 0.01
+
 
     learning_rate: float = 1e-3
     learning_rate_decay: float = 0.9999
 
     tau: float = 0.01
-    gamma: float = 0.6
+    gamma: float = 0.99 # 0.6
     batch_size: int = 32
     buffer_capacity: int = 2000
     nb_interval: int = 200  # interval to update target network
