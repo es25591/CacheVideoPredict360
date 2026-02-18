@@ -29,9 +29,8 @@ class Config:
     # Hyperparameters for RL
     epsilon_start: float = 1.0
     epsilon_min: float = 0.05
-    epsilon_decay: float = 0.98 # (epsilon_min / epsilon_start) ** (1.0 / n_episodes)
+    epsilon_decay: float = 0.987 # (epsilon_min / epsilon_start) ** (1.0 / n_episodes)
     entropy_coef: float = 0.02
-
 
     learning_rate: float = 1e-3
     learning_rate_decay: float = 0.9999
@@ -51,13 +50,13 @@ class Config:
 
     # Paths for data and results
 
-    path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
-    path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
-    path_trajectories: str = '/home/eduardo/Workspace/CacheVideoPredict360/Dataset/Trajectories'
+    # path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
+    # path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
+    # path_trajectories: str = '/home/eduardo/Workspace/CacheVideoPredict360/Dataset/Trajectories'
 
-    # path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
-    # path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
-    # path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset\Trajectories'
+    path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
+    path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
+    path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset\Trajectories'
 
     filename: str = f"drl_dqn_lrdecay{learning_rate_decay}_c{cache_size}_ar{arrival_rate}_z{zipf_alpha}.csv"
 
@@ -66,3 +65,6 @@ class Config:
 
     num_goals = cache_size + 1
     num_low_actions = 5
+
+    state_dim_meta: int = 2 * cache_size + 2 
+    state_dim_ctrl: int = 8 * cache_size + 8 
