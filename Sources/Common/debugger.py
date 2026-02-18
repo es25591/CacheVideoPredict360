@@ -1,3 +1,6 @@
+import csv
+import json
+import pickle
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -39,3 +42,34 @@ class AgentDebugger:
         
     def clear(self):
         self.data.clear()
+        
+    def save_results(self, filepath, format='pickle'):
+        """
+        Store the collected simulation results to a file.
+        
+        Args:
+            filepath: Path where to save the results
+            format: 'pickle', 'json', or 'csv'
+        """
+        # Ensure we have a dictionary of serializable lists for JSON/CSV
+        serializable_data = {
+            key: [v.tolist() if isinstance(v, np.ndarray) else v for v in values]
+            for key, values in self.data.items()
+        }
+
+        with open(f"{filepath}.json", 'w') as f:
+            json.dump(serializable_data, f, indent=2)
+    
+        # We assume all keys have the same number of logs (time steps)
+        keys = list(serializable_data.keys())
+        rows = zip(*serializable_data.values())
+        
+        with open(f"{filepath}.csv", 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(keys)  # Header
+            writer.writerows(rows) # Data rows
+
+        with open(f"{filepath}.pkl", 'wb') as f:
+            pickle.dump(dict(self.data), f)
+         
+        print(f"Results saved to {filepath}")
