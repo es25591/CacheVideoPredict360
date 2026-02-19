@@ -1,0 +1,8 @@
+Common==0.1.2
+gymnasium==1.2.2
+importnb==2023.11.1
+matplotlib==3.10.8
+numpy==2.4.2
+pandas==3.0.0
+torch==2.9.1+cpu
+torch_optimizer==0.3.0

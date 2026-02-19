@@ -1,3 +1,3 @@
-# Video Predict 360 Project
+# FOCUS - Field-Of-View Centric User-aware Streaming
 
 
