@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
+# In[1]:
 
 
 import csv
@@ -51,7 +51,7 @@ importlib.reload(debugger)
 importlib.reload(utils)
 
 
-# In[ ]:
+# In[2]:
 
 
 UserTransition = datatypes.UserTransition
@@ -65,7 +65,7 @@ cfg.filename = f"drl_pan_eps{cfg.epsilon_decay}_lrdecay{cfg.learning_rate_decay}
 debugger = debugger.debug
 
 
-# In[ ]:
+# In[3]:
 
 
 class DrlPolicy(CachePolicy):
@@ -132,7 +132,7 @@ class DrlPolicy(CachePolicy):
         }
 
 
-# In[ ]:
+# In[4]:
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -276,7 +276,7 @@ class DQNAgent:
         self.step = 0
 
 
-# In[ ]:
+# In[5]:
 
 
 class FeatureAdapter:
@@ -370,11 +370,18 @@ class FeatureAdapter:
 
         return hit + sum(viewport_vector if hit else [0,0,0,0])
     
-    def compute_reward(self) -> float:
-        psnr_layer_0 = 30 * sum(self.ch_video_hist)
-        psnr_layer_1 = 2.5 * sum(sum(viewport) for viewport in self.ch_viewport_hist)
+    def compute_reward(self, window_size: int = None) -> float:
+        if window_size is None:
+            window_size = self.env.cfg.h_long
+
+        ch_video_list = list(self.ch_video_hist)[-window_size:]
+        ch_viewport_list = list(self.ch_viewport_hist)[-window_size:]
+
+        psnr_layer_0 = 30 * sum(ch_video_list)
+        psnr_layer_1 = 2.5 * sum(sum(viewport) for viewport in ch_viewport_list)
         
-        return (psnr_layer_0 + psnr_layer_1) / len(self.ch_video_hist)
+        total_items = len(ch_video_list)
+        return (psnr_layer_0 + psnr_layer_1) / total_items if total_items > 0 else 0
 
         
     def _update_window(self, hist_queue: deque, freq_dict: Dict, item):
@@ -388,7 +395,7 @@ class FeatureAdapter:
     
 
 
-# In[ ]:
+# In[6]:
 
 
 class NetworkAdapter:
@@ -443,6 +450,7 @@ class NetworkAdapter:
             )
         features = np.concatenate([x_s, x_l, y_s, y_l, z_s, z_l], axis=0)
 
+        features = np.log1p(features)  # Log-transform to reduce scale and handle zeros
         return features
 
     def reset(self):
@@ -456,7 +464,7 @@ class NetworkAdapter:
         return self.env.users_env.all_users_done()
 
 
-# In[ ]:
+# In[7]:
 
 
 def save_training_results(
@@ -578,7 +586,7 @@ def build_environment(cfg):
     )
 
 
-# In[ ]:
+# In[8]:
 
 
 def run_episode(episode, env, agent, net_adapter, cfg):
@@ -622,6 +630,8 @@ def train(cfg):
 
     feature_adapter = FeatureAdapter(env, cfg)
     net_adapter = NetworkAdapter(env, feature_adapter, cfg)
+    
+    date_dir = pd.Timestamp.now().strftime("%Y-%m-%d_%H-%M")
 
     for episode in range(cfg.n_episodes):
 
@@ -645,8 +655,6 @@ def train(cfg):
         hit_rate = hits / (hits + misses + 1e-9)
         print(f"--- Episode {episode} completed | Total Reward: {total_reward:.2f} | Hit Rate: {hit_rate:.2f} ---")
 
-
-        date_dir = pd.Timestamp.now().strftime("%Y-%m-%d")
         debug_path = os.path.join(cfg.path_results, date_dir)
         os.makedirs(debug_path, exist_ok=True)
         
@@ -694,7 +702,7 @@ PRIMARY_COLOR = "#2b7bba"
 # ----------------------------------------------------------------
 # 2. Data Loading & Smoothing
 # ----------------------------------------------------------------
-cfg.filename = "drl_pan_eps0.98_lrdecay0.9999_c50_ar200.0_z0.8.csv"
+# cfg.filename = "drl_pan_eps0.987_lrdecay0.9999_c50_ar200.0_z0.8.csv"
 path = cfg.path_results + "/" + cfg.filename
 
 print(f"Loading data from: {path}")
