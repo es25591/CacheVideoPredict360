@@ -1,0 +1,10 @@
+__pycache__/
+
+venv
+Dataset
+Results
+
+*.csv
+*.png
+*.pyc
+
