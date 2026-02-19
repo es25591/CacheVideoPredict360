@@ -132,7 +132,7 @@ class DrlPolicy(CachePolicy):
         }
 
 
-# In[4]:
+# In[ ]:
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -248,7 +248,6 @@ class DQNAgent:
 
         loss = self.loss_fn(q_expected, q_target)
 
-        # print(loss.item())
         
         self.optimizer.zero_grad()
         loss.backward()
@@ -276,7 +275,7 @@ class DQNAgent:
         self.step = 0
 
 
-# In[5]:
+# In[ ]:
 
 
 class FeatureAdapter:
@@ -383,7 +382,6 @@ class FeatureAdapter:
         total_items = len(ch_video_list)
         return (psnr_layer_0 + psnr_layer_1) / total_items if total_items > 0 else 0
 
-        
     def _update_window(self, hist_queue: deque, freq_dict: Dict, item):
         if len(hist_queue) == hist_queue.maxlen:
             old_item = hist_queue.popleft()
@@ -586,7 +584,7 @@ def build_environment(cfg):
     )
 
 
-# In[8]:
+# In[ ]:
 
 
 def run_episode(episode, env, agent, net_adapter, cfg):
@@ -601,8 +599,12 @@ def run_episode(episode, env, agent, net_adapter, cfg):
     for step in count():
         req_state = info["user_request"]
 
-        net_adapter.features.update_history(req_state["video"], req_state["viewport"])
-        net_adapter.features.update_ch_history(req_state["video"], req_state["viewport"])
+        net_adapter.features.update_history(
+            req_state["video"], req_state["viewport"]
+        )
+        net_adapter.features.update_ch_history(
+            req_state["video"], req_state["viewport"]
+        )
 
         _, reward, _, info = env.step(
             agent=agent, 
@@ -619,8 +621,12 @@ def run_episode(episode, env, agent, net_adapter, cfg):
 
         if net_adapter.env_is_done():
             break
-        # print(f"Episode {episode} | Step {step} | Reward: {reward:.2f} | Hits: {cache_hits} | Misses: {cache_misses}")
-        
+
+        debugger.log('step_reward', reward)
+        debugger.log('cumulative_reward', total_reward)
+        debugger.log('cache_hits', cache_hits)
+        debugger.log('cache_misses', cache_misses)
+
     return total_reward, cache_hits, cache_misses, soft_hits
 
 def train(cfg):
