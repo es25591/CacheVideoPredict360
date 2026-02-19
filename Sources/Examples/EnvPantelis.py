@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[17]:
+# In[ ]:
 
 
 import csv
@@ -42,15 +42,16 @@ if sources_path not in sys.path:
 import Common.config as config
 import Common.datatypes as datatypes
 import Common.utils as utils
-
+import Common.debugger as debugger
 import importlib
 
 importlib.reload(config)
 importlib.reload(datatypes)
+importlib.reload(debugger)
 importlib.reload(utils)
 
 
-# In[18]:
+# In[ ]:
 
 
 UserTransition = datatypes.UserTransition
@@ -61,8 +62,10 @@ cfg = config.Config()
 cfg.action_dim = 5 * cfg.cache_size + 1
 cfg.filename = f"drl_pan_eps{cfg.epsilon_decay}_lrdecay{cfg.learning_rate_decay}_c{cfg.cache_size}_ar{cfg.arrival_rate}_z{cfg.zipf_alpha}.csv"
 
+debugger = debugger.debug
 
-# In[19]:
+
+# In[ ]:
 
 
 class DrlPolicy(CachePolicy):
@@ -75,7 +78,7 @@ class DrlPolicy(CachePolicy):
 
     def get(self, key: CacheKey) -> Any:
         return self.cache.get(key, None)
-
+    
     def put(self, vid_slot: int, value: Any, size: int) -> list:
         """
         vid_slot   -> slot index
@@ -84,18 +87,15 @@ class DrlPolicy(CachePolicy):
         """
         evicted = []
         new_video, _ = value
-
-        old_video = self.video_idx[vid_slot]
-        old_tiles = self.tile_idx[vid_slot]
-
-        if old_video != -1:
-            evicted.append((old_video, old_tiles))
+        
+        if new_video in self.video_idx:
+            self.cur_size = sum(1 for v in self.video_idx if v != -1)
+            return evicted
 
         self.video_idx[vid_slot] = new_video
         self.tile_idx[vid_slot] = [-1] * self.cfg.viewport
 
         self.cur_size = sum(1 for v in self.video_idx if v != -1)
-
         return evicted
 
     def contains(self, vid: int) -> bool:
@@ -117,10 +117,10 @@ class DrlPolicy(CachePolicy):
 
     def keys(self):
         return self.video_idx
-
+    
     def get_capacity(self) -> int:
         return self.cur_size
-
+    
     def update_size(self):
         self.cur_size = sum(1 for v in self.video_idx if v != -1)
 
@@ -132,15 +132,15 @@ class DrlPolicy(CachePolicy):
         }
 
 
-# In[20]:
+# In[ ]:
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class QNetwork(nn.Module):
-    def __init__(self, state_dim: int, action_dim: int):
+    def __init__(self, state_dim: int, action_dim: int, hidden_dim: int = 128):
         super().__init__()
-        hidden = 128
+        hidden = hidden_dim
         self.fc1 = nn.Linear(state_dim, hidden)
         self.fc2 = nn.Linear(hidden, hidden)
         self.out = nn.Linear(hidden, action_dim)
@@ -153,13 +153,13 @@ class QNetwork(nn.Module):
 class ReplayBuffer:
     def __init__(self, capacity: int = 2000):
         self.memory = deque(maxlen=capacity)
-
+    
     def push(self, s, a, r, ns, d):
         self.memory.append((s, a, r, ns, d))
-
+    
     def sample(self, batch_size: int):
         return random.sample(self.memory, batch_size)
-
+    
     def __len__(self):
         return len(self.memory)
 
@@ -168,35 +168,35 @@ class DQNAgent:
         self.cfg = cfg
 
         self.step = 0
-
+        
         self.state_dim = cfg.state_dim
         self.action_dim = cfg.action_dim # 5 * cfg.cache_size + 1
-
+        
         self.epsilon = cfg.epsilon_start
         self.epsilon_min = cfg.epsilon_min
         self.epsilon_decay = cfg.epsilon_decay
         self.gamma = cfg.gamma
         self.tau = cfg.tau
         self.batch_size = cfg.batch_size
-
+        
         self.buffer = ReplayBuffer(cfg.buffer_capacity)
-
+        
         self.policy_net = QNetwork(self.state_dim, self.action_dim).to(device)
         self.target_net = QNetwork(self.state_dim, self.action_dim).to(device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
-
+        
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=cfg.learning_rate)
-
+        
         self.scheduler = torch.optim.lr_scheduler.ExponentialLR(
             self.optimizer, 
             gamma=cfg.learning_rate_decay
         )
-
+        
         self.loss_fn = nn.MSELoss()
         self.nb_interval = cfg.nb_interval
 
     def select_action(self, state, j, idx):
-
+        
         if random.random() < self.epsilon:
             if j == 0:
                 return random.randint(0, self.cfg.cache_size - 1), None
@@ -248,10 +248,15 @@ class DQNAgent:
 
         loss = self.loss_fn(q_expected, q_target)
 
+        # print(loss.item())
+        
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
         self.scheduler.step()
+        
+        debugger.log('train_loss', loss.item())
+        debugger.log('epsilon', self.epsilon)
 
         self.update_target()
 
@@ -266,12 +271,12 @@ class DQNAgent:
 
     def update_epsilon(self):
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
-
+        
     def reset_step(self):
         self.step = 0
 
 
-# In[21]:
+# In[ ]:
 
 
 class FeatureAdapter:
@@ -292,7 +297,7 @@ class FeatureAdapter:
         self.tile_freq_long = defaultdict(int)
         self.tiles_freq_short = defaultdict(int)
         self.tiles_freq_long = defaultdict(int)
-
+        
         self.ch_video_hist = deque(maxlen=cfg.h_long)
         self.ch_viewport_hist = deque(maxlen=cfg.h_long)
 
@@ -315,7 +320,7 @@ class FeatureAdapter:
             self.tile_freq_short,
             self.tile_freq_long,
         )
-
+        
         for q in queues:
             q.clear()
         for f in freqs:
@@ -354,7 +359,7 @@ class FeatureAdapter:
 
         hit = 1 if vid in video_cache_index else 0
         self.ch_video_hist.append(hit)
-
+        
         if not hit:
             self.ch_viewport_hist.append([0,0,0,0])
         else:
@@ -364,14 +369,14 @@ class FeatureAdapter:
             self.ch_viewport_hist.append(viewport_vector)
 
         return hit + sum(viewport_vector if hit else [0,0,0,0])
-
+    
     def compute_reward(self) -> float:
         psnr_layer_0 = 30 * sum(self.ch_video_hist)
         psnr_layer_1 = 2.5 * sum(sum(viewport) for viewport in self.ch_viewport_hist)
+        
+        return (psnr_layer_0 + psnr_layer_1) / len(self.ch_video_hist)
 
-        return (psnr_layer_0 + psnr_layer_1) / (len(self.ch_video_hist) + 1e-5)
-
-
+        
     def _update_window(self, hist_queue: deque, freq_dict: Dict, item):
         if len(hist_queue) == hist_queue.maxlen:
             old_item = hist_queue.popleft()
@@ -380,10 +385,10 @@ class FeatureAdapter:
                 del freq_dict[old_item]
         hist_queue.append(item)
         freq_dict[item] += 1
+    
 
 
-
-# In[22]:
+# In[ ]:
 
 
 class NetworkAdapter:
@@ -397,7 +402,7 @@ class NetworkAdapter:
 
         print(f"NetworkAdapter initialized with capacity: {self.C} videos, {self.k} tiles per video")
 
-    def build_observation(self, req: Any, vid: int, tile: int = None) -> np.ndarray:
+    def build_observation(self, vid: int, tile: int = None) -> np.ndarray:
         video_cache_index = self.env.mec_cache.policy.video_idx
         tile_cache_index = self.env.mec_cache.policy.tile_idx
 
@@ -410,6 +415,7 @@ class NetworkAdapter:
         for vid_i, v in enumerate(video_cache_index):
             if v == -1:
                 continue
+
             x_s[vid_i] = self.features.video_freq_short.get(v, 0)
             x_l[vid_i] = self.features.video_freq_long.get(v, 0)
 
@@ -435,56 +441,22 @@ class NetworkAdapter:
             z_l = np.array(
                 [self.features.tile_freq_long.get((vid, tile), 0)], dtype=np.float32
             )
-
         features = np.concatenate([x_s, x_l, y_s, y_l, z_s, z_l], axis=0)
+
         return features
 
     def reset(self):
-
+        
         obs, info = self.env.reset()
         self.features.reset_history()
 
-        # video_cache_index = [-1] * self.C
-        # tile_cache_index = [[-1] * self.k for _ in range(self.C)]
-
-        # cached_videos = random.sample(range(self.cfg.n_videos), k=self.C)
-        # video_cache_index = cached_videos
-
-        # # for each cached video, sample distinct tiles
-        # for i, _vid in enumerate(cached_videos):
-        #     tiles = random.sample(range(self.cfg.n_tiles), k=self.k)
-        #     tile_cache_index[i] = tiles
-
-        # self.env.mec_cache.policy.video_idx = video_cache_index
-        # self.env.mec_cache.policy.tile_idx = tile_cache_index
-
-        # gop_id = 0  # default GOP for enhancement tiles
-        # for i, vid in enumerate(video_cache_index):
-        #     if vid == -1:
-        #         continue
-        #     tiles = tile_cache_index[i][:self.k]
-
-        #     # base layer cached for all GOPs
-        #     self.env.mec_cache.cache_bitmap[vid, 0, :, :] = 1
-
-        #     # enhancement tiles cached for GOP 0
-        #     self.env.mec_cache.cache_bitmap[vid, 1, tiles, :] = 1
-
-        # # --- update feature history with cached contents ---
-        # for i, vid in enumerate(video_cache_index):
-        #     if vid == -1:
-        #         continue
-        #     tiles = tile_cache_index[i]
-        #     self.features.update_history(vid, tiles)
-        # # --- end feature update ---
-
         return obs, info
-
+    
     def env_is_done(self) -> bool:
         return self.env.users_env.all_users_done()
 
 
-# In[23]:
+# In[ ]:
 
 
 def save_training_results(
@@ -511,7 +483,7 @@ def save_training_results(
 
         if ep == 0:
             writer_results.writeheader()
-
+        
         writer_results.writerow({
             'episode': ep,
             'total_reward': round(float(total_reward), 2),
@@ -589,6 +561,7 @@ def build_environment(cfg):
 
     # Wrapping all into the main training environment
     return EnvWrapper(
+        cfg=cfg,
         n=cfg.n,
         m=cfg.m,
         n_layers=cfg.n_layers,
@@ -600,23 +573,28 @@ def build_environment(cfg):
         lam=cfg.lam,
         max_steps=cfg.max_steps,
         prefetch_fn=lambda cache, action: cache.drl_prefetching_pantelis(action),
-        reward_fn=lambda env, reqs: env.compute_reward(reqs)
+        reward_fn=lambda env, reqs: env.compute_reward(reqs),
+        debugger=debugger
     )
 
 
-# In[24]:
+# In[ ]:
 
 
 def run_episode(episode, env, agent, net_adapter, cfg):
-    """Run one full training episode."""
     _, info = net_adapter.reset()
     agent.reset_step()
 
     cache_hits = cache_misses = 0
     soft_hits = total_reward = 0.0
 
+    env.warmup_phase(net_adapter)
+
     for step in count():
         req_state = info["user_request"]
+
+        net_adapter.features.update_history(req_state["video"], req_state["viewport"])
+        net_adapter.features.update_ch_history(req_state["video"], req_state["viewport"])
 
         _, reward, _, info = env.step(
             agent=agent, 
@@ -633,7 +611,8 @@ def run_episode(episode, env, agent, net_adapter, cfg):
 
         if net_adapter.env_is_done():
             break
-
+        # print(f"Episode {episode} | Step {step} | Reward: {reward:.2f} | Hits: {cache_hits} | Misses: {cache_misses}")
+        
     return total_reward, cache_hits, cache_misses, soft_hits
 
 def train(cfg):
@@ -649,7 +628,7 @@ def train(cfg):
         total_reward, hits, misses, soft = run_episode(
             episode, env, agent, net_adapter, cfg
         )
-
+        
         agent.update_epsilon()
 
         save_training_results(
@@ -666,6 +645,20 @@ def train(cfg):
         hit_rate = hits / (hits + misses + 1e-9)
         print(f"--- Episode {episode} completed | Total Reward: {total_reward:.2f} | Hit Rate: {hit_rate:.2f} ---")
 
+
+        date_dir = pd.Timestamp.now().strftime("%Y-%m-%d")
+        debug_path = os.path.join(cfg.path_results, date_dir)
+        os.makedirs(debug_path, exist_ok=True)
+        
+        # debugger.histogram("base_layer", "Base Controller Decisions")
+        # debugger.histogram("enh_layer_1", "Enh Layer 1 Controller Decisions")
+        # debugger.histogram("enh_layer_2", "Enh Layer 2 Controller Decisions")
+        # debugger.histogram("enh_layer_3", "Enh Layer 3 Controller Decisions")
+        # debugger.histogram("enh_layer_4", "Enh Layer 4 Controller Decisions")
+
+        debugger.save_results(filepath=f"{debug_path}/debug_ep{episode}")
+
+        debugger.clear()
 
 if __name__ == "__main__":
     train(cfg)
@@ -701,6 +694,7 @@ PRIMARY_COLOR = "#2b7bba"
 # ----------------------------------------------------------------
 # 2. Data Loading & Smoothing
 # ----------------------------------------------------------------
+cfg.filename = "drl_pan_eps0.98_lrdecay0.9999_c50_ar200.0_z0.8.csv"
 path = cfg.path_results + "/" + cfg.filename
 
 print(f"Loading data from: {path}")
@@ -713,7 +707,7 @@ df["miss_rate"] = (df["cache_misses"] / total) * 100
 
 # Metrics to plot
 metrics = ["total_reward", "hit_rate", "miss_rate", "epsilon", "lr"]
-window_size = 10  # Adjust smoothing window as needed
+window_size = 1  # Adjust smoothing window as needed
 
 # ----------------------------------------------------------------
 # 3. Plotting logic
@@ -724,7 +718,7 @@ fig, axes = plt.subplots(1, len(metrics), figsize=(12, 3), sharex=True)
 for ax, col in zip(axes, metrics):
     # Plot raw data with transparency (alpha)
     ax.plot(df["episode"], df[col], color=PRIMARY_COLOR, alpha=0.3, linewidth=0.8, label='Raw')
-
+    
     # Plot moving average for clearer trend (except for epsilon which is usually linear)
     if col != "epsilon":
         smoothed = df[col].rolling(window=window_size).mean()
@@ -736,10 +730,10 @@ for ax, col in zip(axes, metrics):
     # Stylistic cleanup
     ax.set_title(col.replace("_", " ").title(), fontweight="bold")
     ax.set_xlabel("Episode")
-
+    
     # Remove redundant Y-labels to save space, or keep for clarity
     ax.set_ylabel("Value") 
-
+    
     series = df[col].dropna()
     if not series.empty:
         ymin = series.min()
@@ -748,7 +742,7 @@ for ax, col in zip(axes, metrics):
         ax.set_ylim(bottom=0)
 
     ax.grid(axis='y', linestyle='--', alpha=0.3)
-
+    
     # Tufte-style: remove top/right spines
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
@@ -780,15 +774,16 @@ if __name__ == "__main__":
         "figure.constrained_layout.use": True
     })
 
-    COLORS = ["#2b7bba", "#d62728", "#2ca02c"]
+    COLORS = ["#2b7bba", "#d62728", "#2ca02c", "#ff7f0e", "#9467bd", "#8c564b"]
 
     folder = r"c:\Users\es25591\Workspace\CacheVideoPredict360\Results"
     folder= cfg.path_results
-
+    
     files = [
-        "drl_pan_wlog1p_lrdecay0.9999_c100_ar200.0_z0.8.csv",
-        "drl_pan_lrdecay0.9999_c100_ar200.0_z0.8.csv",
-        # "drl_pan_lrdecay0.99999_c50_ar10.0_z0.8.csv",
+        "drl_pan_eps0.985_lrdecay0.9995_c50_ar200.0_z0.8.csv",
+        "drl_pan_eps0.98_lrdecay0.9999_c50_ar200.0_z0.8.csv",
+        "drl_pan_eps0.97_lrdecay0.9997_c50_ar200.0_z0.8.csv",
+        # "drl_pan_eps0.97_lrdecay0.9997_c100_ar200.0_z0.8.csv"
     ]
 
     paths = [os.path.join(folder, f) for f in files]
@@ -811,7 +806,7 @@ if __name__ == "__main__":
     fig, axes = plt.subplots(1, len(metrics), figsize=(12, 3), sharex=True)
 
     for color, path, label in zip(COLORS, paths, labels):
-        df = pd.read_csv(path)
+        df = pd.read_csv(path).head(100).copy()   # only first 100 values
         total = (df["cache_hits"] + df["cache_misses"]).replace(0, np.nan)
         df["hit_rate"] = (df["cache_hits"] / total) * 100
         df["miss_rate"] = (df["cache_misses"] / total) * 100
@@ -874,10 +869,10 @@ def get_metrics_with_error(path):
     try:
         df = pd.read_csv(path)
         total = (df["cache_hits"] + df["cache_misses"]).replace(0, np.nan)
-
+        
         hit_series = (df["cache_hits"] / total * 100)
         miss_series = (df["cache_misses"] / total * 100)
-
+        
         # Calculate Mean and Standard Deviation
         return (hit_series.mean(), hit_series.std()), (miss_series.mean(), miss_series.std())
     except Exception as e:
@@ -904,12 +899,12 @@ stats = {
 for c in caps:
     (d_h, d_h_err), (d_m, d_m_err) = get_metrics_with_error(drl_files[c])
     (l_h, l_h_err), (l_m, l_m_err) = get_metrics_with_error(lsr_files[c])
-
+    
     stats["Hit Rate"]["DRL-LSR"].append(d_h)
     stats["Hit Rate"]["DRL-LSR_err"].append(d_h_err)
     stats["Hit Rate"]["LRU-LSR"].append(l_h)
     stats["Hit Rate"]["LRU-LSR_err"].append(l_h_err)
-
+    
     stats["Miss Rate"]["DRL-LSR"].append(d_m)
     stats["Miss Rate"]["DRL-LSR_err"].append(d_m_err)
     stats["Miss Rate"]["LRU-LSR"].append(l_m)
@@ -928,11 +923,11 @@ error_kw = dict(lw=1, capsize=3, capthick=1, ecolor='#333333')
 metrics = ["Hit Rate", "Miss Rate"]
 for i, metric in enumerate(metrics):
     ax = axes[i]
-
+    
     ax.bar(x - width/2, stats[metric]["DRL-LSR"], width, 
            yerr=stats[metric]["DRL-LSR_err"], error_kw=error_kw,
            label="DRL-LSR", color=COLORS[0], edgecolor='black', linewidth=0.6, zorder=3)
-
+    
     ax.bar(x + width/2, stats[metric]["LRU-LSR"], width, 
            yerr=stats[metric]["LRU-LSR_err"], error_kw=error_kw,
            label="LRU-LSR", color=COLORS[1], edgecolor='black', linewidth=0.6, zorder=3)
@@ -942,7 +937,7 @@ for i, metric in enumerate(metrics):
     ax.set_xticks(x)
     ax.set_xticklabels(caps)
     ax.set_ylim(0, 110) # Increased to accommodate error bars
-
+    
     ax.grid(axis='y', linestyle='--', alpha=0.3, zorder=0)
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
