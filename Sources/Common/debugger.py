@@ -79,9 +79,6 @@ class AgentDebugger:
             writer.writerow(keys)
             writer.writerows(rows)
 
-        with open(f"{filepath}.pkl", "wb") as f:
-            pickle.dump(dict(self.data), f)
-
         print(f"Results saved to {filepath}")
 
 
