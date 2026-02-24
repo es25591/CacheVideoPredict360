@@ -34,16 +34,16 @@ class Config:
     entropy_coef: float = 0.02
 
     learning_rate: float = 1e-3
-    learning_rate_decay: float = 0.999
+    learning_rate_decay: float = 0.9995
 
     tau: float = 0.01
-    gamma: float = 0.9 # 0.6
+    gamma: float = 0.99 # 0.6
     batch_size: int = 32
     buffer_capacity: int = 2000
     nb_interval: int = 200  # interval to update target network
     n_step: int = 1000
 
-    h_short: int = 500   # sliding windows for popularity (Section VI-A)
+    h_short: int = 300   # sliding windows for popularity (Section VI-A)
     h_long: int = 1000
 
     # CPT parameters
@@ -53,9 +53,9 @@ class Config:
     # Paths for data and results
 
     ### Local Laptop
-    path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
-    path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
-    path_trajectories: str = '/home/eduardo/Workspace/CacheVideoPredict360/Dataset/Trajectories'
+    # path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
+    # path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
+    # path_trajectories: str = '/home/eduardo/Workspace/CacheVideoPredict360/Dataset/Trajectories'
 
     ### CERES
     # path_data: str = '/home/es25591/CacheVideoPredict360/Data'
@@ -63,11 +63,11 @@ class Config:
     # path_trajectories: str = '/home/es25591/CacheVideoPredict360/Dataset/Trajectories'
 
     ### Local 6G Lab
-    # path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
-    # path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
-    # path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset\Trajectories'
+    path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
+    path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
+    path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset\Trajectories'
 
-    filename: str = f"drl_dqn_lrdecay{learning_rate_decay}_c{cache_size}_ar{arrival_rate}_z{zipf_alpha}.csv"
+    filename: str = f"drl_dqn_lrdecay{learning_rate_decay}_c{cache_size}_ar{arrival_rate}_z{zipf_alpha}_gamma{gamma}.csv"
 
     state_dim: int = 10 * cache_size + 2 # 10*C + 2 = (2C + 2Ck) * 2 + 2 (Section VI-A)
     action_dim: int = 2  # 0 = Pass, 1 = Cache

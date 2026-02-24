@@ -52,7 +52,7 @@ importlib.reload(debugger)
 importlib.reload(utils)
 
 
-# In[2]:
+# In[ ]:
 
 
 UserTransition = datatypes.UserTransition
@@ -60,7 +60,8 @@ CachePolicy = datatypes.CachePolicy
 CacheKey = datatypes.CacheKey
 
 cfg = config.Config()
-cfg.filename = f"drl_ctrl_eps{cfg.epsilon_start}_lrdecay{cfg.learning_rate_decay}.csv"
+cfg.filename = f"drl_ctrl_eps{cfg.epsilon_start}_lrdecay{cfg.learning_rate_decay}_gamma{cfg.gamma}.csv"
+cfg.state_dim_ctrl = 2 * cfg.viewport + 2 * cfg.viewport 
 
 debugger = debugger.debug
 
@@ -147,7 +148,7 @@ class DrlPolicy(CachePolicy):
         }
 
 
-# In[4]:
+# In[ ]:
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -192,9 +193,9 @@ class NStepReplayBuffer:
     def _get_n_step_info(self):
         reward = 0
         for i, transition in enumerate(self.n_step_buffer):
-            reward += transition[2]
+            reward += (self.gamma ** i) * transition[2]
 
-        reward = reward / self.n_step # Normalize reward by n_step to prevent large values
+        # reward = reward / self.n_step # Normalize reward by n_step to prevent large values
 
         return reward, self.n_step_buffer[-1][3], self.n_step_buffer[-1][4]
     
@@ -278,7 +279,6 @@ class MetaController:
         with torch.no_grad():
             next_q = self.target_net(ns).max(1)[0]
             n_step_gamma = self.gamma ** self.n_step
-            n_step_gamma = self.gamma
             q_target = r + n_step_gamma * next_q * (1.0 - d)
 
         q_expected = self.policy_net(s).gather(1, a.unsqueeze(1)).squeeze(1)
@@ -305,7 +305,7 @@ class MetaController:
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
 class MultiHeadQNetwork(nn.Module):
-    def __init__(self, state_dim, action_dim, num_heads=4, hidden_dim=128):
+    def __init__(self, state_dim, action_dim, num_heads=4, hidden_dim=64):
         super().__init__()
 
         # shared encoder
@@ -332,7 +332,8 @@ class Controller:
         self.step = 0
         self.state_dim = cfg.state_dim_ctrl
         self.low_dim = cfg.num_low_actions
-        
+        self.n_step = cfg.n_step
+
         self.gamma = cfg.gamma
         self.epsilon = cfg.epsilon_start
         self.epsilon_min = cfg.epsilon_min
@@ -340,7 +341,8 @@ class Controller:
         self.batch_size = cfg.batch_size
         self.tau = cfg.tau
 
-        self.buffer = ReplayBuffer(cfg.buffer_capacity)
+        # self.buffer = ReplayBuffer(cfg.buffer_capacity)
+        self.buffer = NStepReplayBuffer(cfg.buffer_capacity, self.n_step, self.gamma)
 
         self.policy_net = MultiHeadQNetwork(
             self.state_dim,
@@ -511,14 +513,14 @@ class FeatureAdapter:
 
         hit = 1 if vid in video_cache_index else 0
         self.ch_video_hist.append(hit)
-        
+
         if not hit:
             viewport_vector = [0,0,0,0]
         else:
             idx = video_cache_index.index(vid)
             cached_tiles = tile_cache_index[idx]
             viewport_vector = [1 if tile in cached_tiles else 0 for tile in viewport]
-            
+
         self.ch_viewport_hist.append(viewport_vector)
 
     def compute_reward_layer_0(self, window_size: int = None) -> float:
@@ -600,20 +602,19 @@ class NetworkAdapter:
 
             features = np.log1p(np.concatenate([x_s, x_l, z_s, z_l], axis=0))
             return features
-        else:            
-            y_s = np.zeros(self.C * self.k, dtype=np.float32)
-            y_l = np.zeros(self.C * self.k, dtype=np.float32)
+        else:
+            
+            vid_idx = self.env.mec_cache.get_video_cache_idx(vid)
+            vp_tiles = tile_cache_index[vid_idx]
+            
+            y_s = np.zeros(self.k, dtype=np.float32)
+            y_l = np.zeros(self.k, dtype=np.float32)
 
-            for vid_i, v in enumerate(video_cache_index):
-                if v == -1:
+            for til_i, t in enumerate(vp_tiles):
+                if t == -1:
                     continue
-
-                tiles = tile_cache_index[vid_i]
-                for til_i, t in enumerate(tiles):
-                    if t == -1:
-                        continue
-                    y_s[vid_i * self.k + til_i] = self.features.tile_freq_short.get((v, t), 0)
-                    y_l[vid_i * self.k + til_i] = self.features.tile_freq_long.get((v, t), 0)
+                y_s[til_i] = self.features.tile_freq_short.get((vid, t), 0)
+                y_l[til_i] = self.features.tile_freq_long.get((vid, t), 0)
 
             z_s = np.zeros(len(viewport), dtype=np.float32)
             z_l = np.zeros(len(viewport), dtype=np.float32)
@@ -626,7 +627,6 @@ class NetworkAdapter:
             return features
 
     def reset(self):
-        
         obs, info = self.env.reset()
         self.features.reset_history()
 
@@ -782,12 +782,12 @@ def run_episode(episode, env, meta, ctrl, net_adapter, cfg):
 
         if net_adapter.env_is_done():
             break
-    
+
         debugger.log('cache_hits', hits)
         debugger.log('cache_misses', misses)
         debugger.log('step_reward', reward)
         debugger.log('cumulative_reward', total_reward)
-    
+            
         # print(f"Episode {episode} | Step {step} | Reward: {reward:.2f} | Total Reward: {total_reward:.2f} | Hits: {cache_hits} | Misses: {cache_misses}")
 
     return total_reward, cache_hits, cache_misses, base_hits, base_misses
@@ -846,7 +846,7 @@ if __name__ == "__main__":
     train(cfg)
 
 
-# In[ ]:
+# In[9]:
 
 
 import pandas as pd
