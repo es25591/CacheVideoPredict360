@@ -52,7 +52,7 @@ importlib.reload(debugger)
 importlib.reload(utils)
 
 
-# In[ ]:
+# In[2]:
 
 
 UserTransition = datatypes.UserTransition
@@ -60,7 +60,7 @@ CachePolicy = datatypes.CachePolicy
 CacheKey = datatypes.CacheKey
 
 cfg = config.Config()
-cfg.filename = f"drl_ctrl_eps{cfg.epsilon_start}_lrdecay{cfg.learning_rate_decay}_gamma{cfg.gamma}.csv"
+cfg.filename = f"ctrl_eps{cfg.epsilon_start}_lrdecay{cfg.learning_rate_decay}_gamma{cfg.gamma}.csv"
 cfg.state_dim_ctrl = 2 * cfg.viewport + 2 * cfg.viewport 
 
 debugger = debugger.debug
@@ -91,19 +91,19 @@ class DrlPolicy(CachePolicy):
         new_video, _ = value
 
         if new_video in self.video_idx:
-            # old_video_slot = self.video_idx.index(new_video)
-            # if old_video_slot != slot:
-            #     # Swap video positions
-            #     self.video_idx[slot], self.video_idx[old_video_slot] = (
-            #         self.video_idx[old_video_slot],
-            #         self.video_idx[slot],
-            #     )
+            old_video_slot = self.video_idx.index(new_video)
+            if old_video_slot != slot:
+                # Swap video positions
+                self.video_idx[slot], self.video_idx[old_video_slot] = (
+                    self.video_idx[old_video_slot],
+                    self.video_idx[slot],
+                )
 
-            #     # Swap tile mapping accordingly
-            #     self.tile_idx[slot], self.tile_idx[old_video_slot] = (
-            #         self.tile_idx[old_video_slot],
-            #         self.tile_idx[slot],
-            #     )
+                # Swap tile mapping accordingly
+                self.tile_idx[slot], self.tile_idx[old_video_slot] = (
+                    self.tile_idx[old_video_slot],
+                    self.tile_idx[slot],
+                )
 
             self.cur_size = sum(1 for v in self.video_idx if v != -1)
             return evicted
@@ -133,10 +133,10 @@ class DrlPolicy(CachePolicy):
 
     def keys(self):
         return self.video_idx
-    
+
     def get_capacity(self) -> int:
         return self.cur_size
-    
+
     def update_size(self):
         self.cur_size = sum(1 for v in self.video_idx if v != -1)
 
@@ -148,7 +148,7 @@ class DrlPolicy(CachePolicy):
         }
 
 
-# In[ ]:
+# In[4]:
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -156,13 +156,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class ReplayBuffer:
     def __init__(self, capacity: int = 2000):
         self.memory = deque(maxlen=capacity)
-    
+
     def push(self, s, a, r, ns, d):
         self.memory.append((s, a, r, ns, d))
-    
+
     def sample(self, batch_size: int):
         return random.sample(self.memory, batch_size)
-    
+
     def __len__(self):
         return len(self.memory)
 
@@ -173,22 +173,16 @@ class NStepReplayBuffer:
         self.n_step = n_step
         self.gamma = gamma
 
-        self.counter = 0
-
     def push(self, s, a, r, ns, done):
         self.n_step_buffer.append((s, a, r, ns, done))
         if len(self.n_step_buffer) < self.n_step:
             return
-        
+
         # Compute N-step discounted reward
         # G = r1 + gamma*r2 + ... + gamma^(n-1)*rn
         reward, next_state, done_ = self._get_n_step_info()
-        state, action, _, _, _ = self.n_step_buffer[0]
+        state, action, _, next_state, _ = self.n_step_buffer[0]
         self.memory.append((state, action, reward, next_state, done_))
-
-        # print(f"{self.counter} Added to N-step buffer: state={state}, action={action}, reward={reward}, next_state={next_state}, done={done_}")
-        
-        self.counter += 1
 
     def _get_n_step_info(self):
         reward = 0
@@ -198,10 +192,10 @@ class NStepReplayBuffer:
         # reward = reward / self.n_step # Normalize reward by n_step to prevent large values
 
         return reward, self.n_step_buffer[-1][3], self.n_step_buffer[-1][4]
-    
+
     def sample(self, batch_size):
         return random.sample(self.memory, batch_size)
-    
+
     def __len__(self):
         return len(self.memory)
 
@@ -305,7 +299,7 @@ class MetaController:
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
 class MultiHeadQNetwork(nn.Module):
-    def __init__(self, state_dim, action_dim, num_heads=4, hidden_dim=64):
+    def __init__(self, state_dim, action_dim, num_heads=4, hidden_dim=128):
         super().__init__()
 
         # shared encoder
@@ -374,7 +368,7 @@ class Controller:
             qvals = self.policy_net(state)   # (1, 4, actions)
             actions = qvals.argmax(dim=2).squeeze(0)
             return actions.tolist()
-        
+
     def remember(self, s, action, r, ns, done):
         self.buffer.push(s, action, r, ns, done)
 
@@ -455,6 +449,8 @@ class FeatureAdapter:
         self.ch_video_hist = deque(maxlen=cfg.h_long)
         self.ch_viewport_hist = deque(maxlen=cfg.h_long)
 
+        self.all_video_hist = []
+
     def reset_history(self):
         queues = (
             self.video_hist_short,
@@ -474,11 +470,13 @@ class FeatureAdapter:
             self.tile_freq_short,
             self.tile_freq_long,
         )
-        
+
         for q in queues:
             q.clear()
         for f in freqs:
             f.clear()
+
+        self.all_video_hist = []
 
     def update_history(self, vid: int, tiles: list[int]):       
         self._update_window(self.video_hist_short, self.video_freq_short, vid)
@@ -508,6 +506,8 @@ class FeatureAdapter:
             self._update_window(self.tiles_hist_long, self.tiles_freq_long, item)
 
     def update_ch_history(self, vid: int, viewport: list[int]) -> None:
+        self.all_video_hist.append(vid)
+
         video_cache_index = self.env.mec_cache.policy.video_idx
         tile_cache_index = self.env.mec_cache.policy.tile_idx
 
@@ -529,7 +529,7 @@ class FeatureAdapter:
 
         ch_video_list = list(self.ch_video_hist)[-window_size:]
         psnr_layer_0 = 30 * sum(ch_video_list)
-        
+
         return psnr_layer_0 / len(ch_video_list) if ch_video_list else 0
 
     def compute_reward_layer_1(self, window_size: int = None) -> float:
@@ -544,7 +544,7 @@ class FeatureAdapter:
     def compute_reward(self, window_size: int = None) -> float:
         if window_size is None:
             window_size = len(self.ch_video_hist)
-        
+
         ch_video_list = list(self.ch_video_hist)[-window_size:]
         ch_viewport_list = list(self.ch_viewport_hist)[-window_size:]
 
@@ -553,6 +553,34 @@ class FeatureAdapter:
 
         total_items = len(ch_video_list)
         return (psnr_layer_0 + psnr_layer_1) / total_items if total_items > 0 else 0
+
+    def compute_meta_potential(self) -> float:
+        video_cache_index = self.env.mec_cache.policy.video_idx
+        potential = 0.0
+
+        if self.video_hist_long.maxlen > 0:
+            for vid in video_cache_index:
+                if vid != -1:
+                    prob = self.video_freq_long.get(vid, 0) / self.video_hist_long.maxlen
+                    potential += prob
+
+        return potential
+
+    def compute_ctrl_potential(self) -> float:
+        video_cache_index = self.env.mec_cache.policy.video_idx
+        tile_cache_index = self.env.mec_cache.policy.tile_idx
+        potential = 0.0
+
+        if self.tile_hist_long.maxlen > 0:
+            for vid_idx, vid in enumerate(video_cache_index):
+                if vid == -1: continue
+
+                for tile in tile_cache_index[vid_idx]:
+                    if tile != -1:
+                        prob = self.tile_freq_long.get((vid, tile), 0) / self.tile_hist_long.maxlen
+                        potential += prob
+
+        return potential
 
     def _update_window(self, hist_queue: deque, freq_dict: Dict, item):
         if len(hist_queue) == hist_queue.maxlen:
@@ -583,47 +611,47 @@ class NetworkAdapter:
         tile_cache_index = self.env.mec_cache.policy.tile_idx
 
         if viewport is None:
-            
+
             x_s = np.zeros(self.C, dtype=np.float32)
             x_l = np.zeros(self.C, dtype=np.float32)
 
             for vid_i, v in enumerate(video_cache_index):
                 if v == -1:
                     continue
-                x_s[vid_i] = self.features.video_freq_short.get(v, 0)
-                x_l[vid_i] = self.features.video_freq_long.get(v, 0)
+                x_s[vid_i] = self.features.video_freq_short.get(v, 0) / self.features.video_hist_short.maxlen
+                x_l[vid_i] = self.features.video_freq_long.get(v, 0) / self.features.video_hist_long.maxlen
 
             z_s = np.array(
-                [self.features.video_freq_short.get(vid, 0)], dtype=np.float32
+                [self.features.video_freq_short.get(vid, 0) / self.features.video_hist_short.maxlen], dtype=np.float32
             )
             z_l = np.array(
-                [self.features.video_freq_long.get(vid, 0)], dtype=np.float32
+                [self.features.video_freq_long.get(vid, 0) / self.features.video_hist_long.maxlen], dtype=np.float32
             )
 
-            features = np.log1p(np.concatenate([x_s, x_l, z_s, z_l], axis=0))
+            features = np.concatenate([x_s, x_l, z_s, z_l], axis=0)
             return features
         else:
-            
+
             vid_idx = self.env.mec_cache.get_video_cache_idx(vid)
             vp_tiles = tile_cache_index[vid_idx]
-            
+
             y_s = np.zeros(self.k, dtype=np.float32)
             y_l = np.zeros(self.k, dtype=np.float32)
 
             for til_i, t in enumerate(vp_tiles):
                 if t == -1:
                     continue
-                y_s[til_i] = self.features.tile_freq_short.get((vid, t), 0)
-                y_l[til_i] = self.features.tile_freq_long.get((vid, t), 0)
+                y_s[til_i] = self.features.tile_freq_short.get((vid, t), 0) / self.features.tile_hist_short.maxlen
+                y_l[til_i] = self.features.tile_freq_long.get((vid, t), 0) / self.features.tile_hist_long.maxlen
 
             z_s = np.zeros(len(viewport), dtype=np.float32)
             z_l = np.zeros(len(viewport), dtype=np.float32)
 
             for i, tile in enumerate(viewport):
-                z_s[i] = self.features.tile_freq_short.get((vid, tile), 0)
-                z_l[i] = self.features.tile_freq_long.get((vid, tile), 0)
+                z_s[i] = self.features.tile_freq_short.get((vid, tile), 0) / self.features.tile_hist_short.maxlen
+                z_l[i] = self.features.tile_freq_long.get((vid, tile), 0) / self.features.tile_hist_long.maxlen
 
-            features = np.log1p(np.concatenate([y_s, y_l, z_s, z_l], axis=0))
+            features = np.concatenate([y_s, y_l, z_s, z_l], axis=0)
             return features
 
     def reset(self):
@@ -631,7 +659,7 @@ class NetworkAdapter:
         self.features.reset_history()
 
         return obs, info
-    
+
     def env_is_done(self) -> bool:
         return self.env.users_env.all_users_done()
 
@@ -661,7 +689,7 @@ def save_training_results(
 
         if ep == 0:
             writer_results.writeheader()
-        
+
         writer_results.writerow({
             'episode': ep,
             'total_reward': round(float(total_reward), 2),
@@ -754,7 +782,7 @@ def build_environment(cfg):
     )
 
 
-# In[ ]:
+# In[8]:
 
 
 def run_episode(episode, env, meta, ctrl, net_adapter, cfg):
@@ -764,6 +792,8 @@ def run_episode(episode, env, meta, ctrl, net_adapter, cfg):
     cache_hits = cache_misses = 0
     soft_hits = total_reward = 0.0
     base_hits = base_misses = 0
+
+    residency_tracker = defaultdict(int)
 
     env.warmup_phase(net_adapter)
 
@@ -787,7 +817,7 @@ def run_episode(episode, env, meta, ctrl, net_adapter, cfg):
         debugger.log('cache_misses', misses)
         debugger.log('step_reward', reward)
         debugger.log('cumulative_reward', total_reward)
-            
+
         # print(f"Episode {episode} | Step {step} | Reward: {reward:.2f} | Total Reward: {total_reward:.2f} | Hits: {cache_hits} | Misses: {cache_misses}")
 
     return total_reward, cache_hits, cache_misses, base_hits, base_misses
@@ -833,7 +863,13 @@ def train(cfg):
         debug_path = os.path.join(cfg.path_results, date_dir)
         os.makedirs(debug_path, exist_ok=True)
 
-        # debugger.histogram("base_layer", "Base Controller Decisions")
+        # plot_cache_alignment(
+        #     env, 
+        #     net_adapter.features.all_video_hist, 
+        #     top_k=env.mec_cache.policy.cfg.cache_size
+        # )
+
+        # debugger.histogram("base_action", "Base Controller Decisions")
         # debugger.histogram("enh_layer_1", "Enh Layer 1 Controller Decisions")
         # debugger.histogram("enh_layer_2", "Enh Layer 2 Controller Decisions")
         # debugger.histogram("enh_layer_3", "Enh Layer 3 Controller Decisions")
@@ -841,6 +877,7 @@ def train(cfg):
 
         debugger.save_results(filepath=f"{debug_path}/debug_ep{episode}")
         debugger.clear()
+        print("-" * 50)
 
 if __name__ == "__main__":
     train(cfg)
@@ -876,7 +913,7 @@ PRIMARY_COLOR = "#2b7bba"
 # ----------------------------------------------------------------
 # 2. Data Loading & Smoothing
 # ----------------------------------------------------------------
-cfg.filename = f"drl_kulkani_softup_lrdecay{cfg.learning_rate_decay}_c{cfg.cache_size}_ar{cfg.arrival_rate}_z{cfg.zipf_alpha}.csv"
+cfg.filename = f"ctrl_eps{cfg.epsilon_start}_lrdecay{cfg.learning_rate_decay}_gamma{cfg.gamma}.csv"
 path = cfg.path_results + "/" + cfg.filename
 
 print(f"Loading data from: {path}")
@@ -900,7 +937,7 @@ fig, axes = plt.subplots(1, len(metrics), figsize=(12, 3), sharex=True)
 for ax, col in zip(axes, metrics):
     # Plot raw data with transparency (alpha)
     ax.plot(df["episode"], df[col], color=PRIMARY_COLOR, alpha=0.3, linewidth=0.8, label='Raw')
-    
+
     # Plot moving average for clearer trend (except for epsilon which is usually linear)
     if col != "epsilon":
         smoothed = df[col].rolling(window=window_size).mean()
@@ -912,10 +949,10 @@ for ax, col in zip(axes, metrics):
     # Stylistic cleanup
     ax.set_title(col.replace("_", " ").title(), fontweight="bold")
     ax.set_xlabel("Episode")
-    
+
     # Remove redundant Y-labels to save space, or keep for clarity
     ax.set_ylabel("Value") 
-    
+
     series = df[col].dropna()
     if not series.empty:
         ymin = series.min()
@@ -924,7 +961,7 @@ for ax, col in zip(axes, metrics):
         ax.set_ylim(bottom=0)
 
     ax.grid(axis='y', linestyle='--', alpha=0.3)
-    
+
     # Tufte-style: remove top/right spines
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
