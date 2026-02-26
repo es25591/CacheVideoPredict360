@@ -100,14 +100,27 @@ class Model(nn.Module):
             'mean_train_solver_infeasible': 0,
             'mean_train_solver_interventions': 0
         }
-    
-    
-class ATLA(Model):
-    def __init__(self, args, target_net=None):
-        super(ATLA, self).__init__(args)
-        self.construct_model()
 
-    def construct_model(self):
-        self.construct_value_net()
-        self.construct_policy_net()
+        if self.cfg.episodic:
+            episode = []
+        
+        state = global_state = trainer.env.reset()
+        
+        last_hid = torch.zeros(self.n, self.hidden_dim).to(self.cfg.device)
+        for step in range(self.cfg.max_steps):
+            act = self.get_actions(state, schedule=trainer.schedule, last_act=last_act, last_hid=last_hid, info={}, stat=stat)
+            next_state, reward, done, info = trainer.env.step(act.cpu().numpy())
+            
+            if self.cfg.episodic:
+                episode.append((state, act, reward, next_state, done))
+            else:
+                self.transition_update((state, act, reward, next_state, done))
+                self.episode_update(episode_i)
 
+            state = next_state
+            last_act = act
+            last_hid = None
+
+            stat_train['mean_train_reward'] += reward.mean().item()
+            stat_train['mean_train_solver_infeasible'] += info['solver_infeasible'].mean().item()
+            stat_train['mean_train_solver_interventions'] += info['solver_interventions'].mean().item()
