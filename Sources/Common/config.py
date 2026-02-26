@@ -72,8 +72,8 @@ class Config:
     state_dim: int = 10 * cache_size + 2 # 10*C + 2 = (2C + 2Ck) * 2 + 2 (Section VI-A)
     action_dim: int = 2  # 0 = Pass, 1 = Cache
 
-    num_goals = cache_size + 1
-    num_low_actions = 5
+    action_dim_meta: int = cache_size + 1
+    action_dim_ctrl: int = viewport + 1
 
     state_dim_meta: int = 2 * cache_size + 2 
-    state_dim_ctrl: int = 8 * cache_size + 8 
+    state_dim_ctrl: int = 2 * viewport + 2 * viewport
