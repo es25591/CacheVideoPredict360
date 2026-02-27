@@ -10,8 +10,8 @@ class Model(nn.Module):
 
         self.n = cfg.n_agents
         self.hidden_dim = cfg.hidden_dim
-        self.state_dim = cfg.state_dim
-        self.action_dim = cfg.action_dim
+        self.state_dim = cfg.state_dim_meta
+        self.action_dim = cfg.action_dim_meta
 
         self.Transition = namedtuple(
             'Transition', ('state', 'action', 'reward', 'next_state', 'done')
@@ -68,7 +68,7 @@ class Model(nn.Module):
         else:
             raise NotImplementedError
         
-        if self.args.shared_params:
+        if self.cfg.shared_params:
             self.policy_dicts = nn.ModuleList([Agent(input_shape, self.cfg)])
         else:
             self.policy_dicts = nn.ModuleList(

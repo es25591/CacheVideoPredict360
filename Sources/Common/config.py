@@ -11,7 +11,7 @@ class Config:
     zipf_alpha: float = 0.8
     n_videos: int = 500
     n_gops: int = 30
-    user_session_length: int = 60
+    user_session_length: int = 30
     n_layers: int = 2
     n: int = 4
     m: int = 3
@@ -30,14 +30,14 @@ class Config:
     # Hyperparameters for RL
     epsilon_start: float = 1.0
     epsilon_min: float = 0.05
-    epsilon_decay: float = 0.98
+    epsilon_decay: float = 0.985
     entropy_coef: float = 0.02
 
     learning_rate: float = 1e-3
     learning_rate_decay: float = 0.9995
 
     tau: float = 0.01
-    gamma: float = 0.99 # 0.6
+    gamma: float = 0.995 # 0.6
     batch_size: int = 32
     buffer_capacity: int = 2000
     nb_interval: int = 200  # interval to update target network
@@ -67,7 +67,7 @@ class Config:
     path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
     path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset\Trajectories'
 
-    filename: str = f"drl_dqn_lrdecay{learning_rate_decay}_c{cache_size}_ar{arrival_rate}_z{zipf_alpha}_gamma{gamma}.csv"
+    filename: str = f"dqn_lrdecay{learning_rate_decay}_c{cache_size}_ar{arrival_rate}_z{zipf_alpha}_gamma{gamma}.csv"
 
     state_dim: int = 10 * cache_size + 2 # 10*C + 2 = (2C + 2Ck) * 2 + 2 (Section VI-A)
     action_dim: int = 2  # 0 = Pass, 1 = Cache
@@ -77,3 +77,16 @@ class Config:
 
     state_dim_meta: int = 2 * cache_size + 2 
     state_dim_ctrl: int = 2 * viewport + 2 * viewport
+
+    ### Additional configuration parameters can be added here as needed
+
+    n_agents: int = 1
+    agent_idx: int = 0
+    agent_type: str = "mlp"  # "mlp" or "transformer"
+    
+    hidden_dim: int = 128
+    attend_heads: int = 4
+    replay: bool = True
+    shared_params: bool = True
+    continuous: bool = False
+    norm_in: bool = True

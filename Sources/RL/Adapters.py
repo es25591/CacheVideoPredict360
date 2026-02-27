@@ -134,13 +134,13 @@ class FeatureAdapter:
     def compute_meta_potential(self) -> float:
         video_cache_index = self.env.mec_cache.policy.video_idx
         potential = 0.0
-        
+
         if self.video_hist_long.maxlen > 0:
             for vid in video_cache_index:
                 if vid != -1:
                     prob = self.video_freq_long.get(vid, 0) / self.video_hist_long.maxlen
                     potential += prob
-                    
+
         return potential
 
     def compute_ctrl_potential(self) -> float:
@@ -156,7 +156,7 @@ class FeatureAdapter:
                     if tile != -1:
                         prob = self.tile_freq_long.get((vid, tile), 0) / self.tile_hist_long.maxlen
                         potential += prob
-                        
+
         return potential
 
     def _update_window(self, hist_queue: deque, freq_dict: Dict, item):
