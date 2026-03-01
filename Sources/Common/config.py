@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 
 class Config:
-    n_episodes: int = 300
+    n_episodes: int = 10
     max_steps: int = 10000
     n_nodes: int = 3
     n_users: int = 200
@@ -53,9 +53,9 @@ class Config:
     # Paths for data and results
 
     ### Local Laptop
-    # path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
-    # path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
-    # path_trajectories: str = '/home/eduardo/Workspace/CacheVideoPredict360/Dataset/Trajectories'
+    path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
+    path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
+    path_trajectories: str = '/home/eduardo/Workspace/CacheVideoPredict360/Dataset/Trajectories'
 
     ### CERES
     # path_data: str = '/home/es25591/CacheVideoPredict360/Data'
@@ -63,9 +63,9 @@ class Config:
     # path_trajectories: str = '/home/es25591/CacheVideoPredict360/Dataset/Trajectories'
 
     ### Local 6G Lab
-    path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
-    path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
-    path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset\Trajectories'
+    # path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
+    # path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
+    # path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset\Trajectories'
 
     filename: str = f"dqn_lrdecay{learning_rate_decay}_c{cache_size}_ar{arrival_rate}_z{zipf_alpha}_gamma{gamma}.csv"
 
@@ -80,13 +80,22 @@ class Config:
 
     ### Additional configuration parameters can be added here as needed
 
+    init_type: str = "normal"  # "normal" or "orthogonal"
+    init_std: float = 0.02
+
     n_agents: int = 1
     agent_idx: int = 0
     agent_type: str = "mlp"  # "mlp" or "transformer"
     
+    hidden_size: int = 128
     hidden_dim: int = 128
     attend_heads: int = 4
     replay: bool = True
     shared_params: bool = True
     continuous: bool = False
     norm_in: bool = True
+    layernorm: bool = False
+    hid_activation: str = 'relu'  # 'relu' or 'tanh'
+    
+    LOG_STD_MIN: float = -20
+    LOG_STD_MAX: float = 2

@@ -37,7 +37,7 @@ class FeatureAdapter:
             self.tile_hist_short,
             self.tile_hist_long,
             self.ch_video_hist,
-            self.ch_viewport_hist,            
+            self.ch_viewport_hist,
         )
         freqs = (
             self.video_freq_short,
@@ -47,14 +47,14 @@ class FeatureAdapter:
             self.tile_freq_short,
             self.tile_freq_long,
         )
-        
+
         for q in queues:
             q.clear()
         for f in freqs:
             f.clear()
 
         self.all_video_hist = []
-        
+
     def update_history(self, vid: int, tiles: list[int]):       
         self._update_window(self.video_hist_short, self.video_freq_short, vid)
         self._update_window(self.video_hist_long, self.video_freq_long, vid)

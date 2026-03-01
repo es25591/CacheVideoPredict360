@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 from collections import namedtuple
 
+from RL.TrainerCore import EpisodeRunner
+
 
 class Model(nn.Module):
     def __init__(self, cfg):
@@ -46,38 +48,24 @@ class Model(nn.Module):
     def construct_model(self):
         raise NotImplementedError
     
-    def policy(self, state, schedule=None, last_act=None, last_hid=None, info={}, stat={}):
-        raise NotImplementedError
-    
-    def value(self, state, act, last_act=None, last_hid=None):
-        raise NotImplementedError
-    
     def construct_policy_net(self):
-        if self.cfg.agent_id:
-            input_shape = self.state_dim + self.n
-        else:
-            input_shape = self.state_dim
-            
-        if self.cfg.agent_type == "mlp":
-            if self.cfg.gaussian_policy:
-                from agents.mlp_agent_gaussian import MLPAgent
-            else:
-                from agents.mlp_agent import MLPAgent
-                
-            self.policy_net = MLPAgent(input_shape, self.cfg)
-        else:
-            raise NotImplementedError
-        
-        if self.cfg.shared_params:
-            self.policy_dicts = nn.ModuleList([Agent(input_shape, self.cfg)])
-        else:
-            self.policy_dicts = nn.ModuleList(
-                [Agent(input_shape, self.cfg) for _ in range(self.n)]
-            )
+        raise NotImplementedError
         
     def construct_value_net(self):
         raise NotImplementedError
     
+    def policy(self, state, schedule=None, last_act=None, last_hid=None, info=None, stat=None):
+        raise NotImplementedError
+    
+    def value(self, state, act, last_act=None, last_hid=None):
+        raise NotImplementedError
+
+    def forward(self, state, act=None, last_act=None, last_hid=None, info=None, stat=None):
+        if act is None:
+            return self.policy(state, schedule=None, last_act=last_act, last_hid=last_hid, info=info, stat=stat)
+        else:
+            return self.value(state, act, last_act=last_act, last_hid=last_hid)
+
     def init_weights(self, m):
         if not isinstance(m, nn.Linear):
             return
@@ -88,39 +76,68 @@ class Model(nn.Module):
                 m.weight, gain=nn.init.calculate_gain(self.cfg.hid_activation)
             )
         
-    def get_actions(self, state, schedule=None, last_act=None, last_hid=None, info={}, stat={}):
+    def get_actions(self, state, schedule=None, last_act=None, last_hid=None, info=None, stat=None):
         raise NotImplementedError
     
     def det_loss(self, state, act, last_act=None, last_hid=None):
         raise NotImplementedError
     
-    def train_process(self, stat, episode_i, trainer, hyperparams={}):
+    def train_process(self, stat, episode_i, trainer, hyperparams=None):
+        if hyperparams is None:
+            hyperparams = {}
+
         stat_train = {
             'mean_train_reward': 0, 
             'mean_train_solver_infeasible': 0,
             'mean_train_solver_interventions': 0
         }
-
-        if self.cfg.episodic:
-            episode = []
         
-        state = global_state = trainer.env.reset()
-        
-        last_hid = torch.zeros(self.n, self.hidden_dim).to(self.cfg.device)
-        for step in range(self.cfg.max_steps):
-            act = self.get_actions(state, schedule=trainer.schedule, last_act=last_act, last_hid=last_hid, info={}, stat=stat)
-            next_state, reward, done, info = trainer.env.step(act.cpu().numpy())
-            
-            if self.cfg.episodic:
-                episode.append((state, act, reward, next_state, done))
-            else:
-                self.transition_update((state, act, reward, next_state, done))
-                self.episode_update(episode_i)
+        print(f"Episode {episode_i} training...")
 
-            state = next_state
-            last_act = act
-            last_hid = None
+        episode = []
 
-            stat_train['mean_train_reward'] += reward.mean().item()
-            stat_train['mean_train_solver_infeasible'] += info['solver_infeasible'].mean().item()
-            stat_train['mean_train_solver_interventions'] += info['solver_interventions'].mean().item()
+        device = getattr(self.cfg, 'device', next(self.parameters()).device if any(True for _ in self.parameters()) else 'cpu')
+        init_last_hid = None
+        if getattr(self, 'hidden_dim', None):
+            init_last_hid = torch.zeros(self.n, self.hidden_dim).to(device)
+
+        runner = EpisodeRunner(
+            env=trainer.env,
+            max_steps=int(hyperparams.get('max_steps', self.cfg.max_steps)),
+        )
+
+        def action_selector(state, schedule=None, last_act=None, last_hid=None, info=None, stat=None):
+            return self.get_actions(
+                state,
+                schedule=schedule,
+                last_act=last_act,
+                last_hid=last_hid,
+                info=info or {},
+                stat=stat or {},
+            )
+
+        def transition_handler(transition, episode_idx, _step_idx):
+            if getattr(self.cfg, 'episodic', False):
+                episode.append(transition)
+                return
+
+            self.transition_update(transition)
+            self.episode_update(episode_idx, stat)
+
+        result = runner.run(
+            episode_i=episode_i,
+            stat=stat,
+            schedule=getattr(trainer, 'schedule', None),
+            action_selector=action_selector,
+            transition_handler=transition_handler,
+            last_hidden=init_last_hid,
+            last_action=None,
+        )
+
+        stat_train.update(result.stats)
+
+        if getattr(self.cfg, 'episodic', False):
+            self.memory = episode
+            self.episode_update(episode_i, stat)
+
+        return stat_train

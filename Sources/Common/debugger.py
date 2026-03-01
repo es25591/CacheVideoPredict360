@@ -181,7 +181,7 @@ class AgentDebugger:
             writer.writerow(keys)
             writer.writerows(rows)
 
-        print(f"Results saved to {filepath}")
+        # print(f"Results saved to {filepath}")
 
 
 debug = AgentDebugger()

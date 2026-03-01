@@ -252,7 +252,7 @@ class ZipfSampler:
 
 if __name__ == "__main__":
     sampler = ZipfSampler(total_videos=500, alpha=0.8)
-    samples = sampler.sample_n(500)
+    samples = sampler.sample_n(200)
     
     print("Zipf Samples:", samples)
 
