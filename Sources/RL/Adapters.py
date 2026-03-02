@@ -5,7 +5,7 @@ from typing import Dict, Any
 
 
 class FeatureAdapter:
-    def __init__(self, env: Any, cfg: Any):
+    def __init__(self, cfg: Any, env: Any):
         self.env = env
         self.cfg = cfg
 
@@ -170,7 +170,7 @@ class FeatureAdapter:
 
 
 class NetworkAdapter:
-    def __init__(self, env: Any, feature_adapter: Any, cfg: Any):
+    def __init__(self, cfg: Any, env: Any, feature_adapter: Any):
         self.env = env
         self.cfg = cfg
         self.features = feature_adapter
@@ -180,53 +180,56 @@ class NetworkAdapter:
 
         print(f"NetworkAdapter initialized with capacity: {self.C} videos, {self.k} tiles per video")
 
-    def build_observation(self, vid: int, viewport: list = None) -> np.ndarray:
+    def build_observation(self, req) -> np.ndarray:
+        
+        if req is None:
+            return np.zeros(self.C * 2 + 2, dtype=np.float32), np.zeros(self.k * 2 + self.k * 2, dtype=np.float32)
+        
+        vid = req["video"]
+        viewport = req["viewport"]
+        
         video_cache_index = self.env.mec_cache.policy.video_idx
         tile_cache_index = self.env.mec_cache.policy.tile_idx
+        
+        x_s = np.zeros(self.C, dtype=np.float32)
+        x_l = np.zeros(self.C, dtype=np.float32)
 
-        if viewport is None:
-            
-            x_s = np.zeros(self.C, dtype=np.float32)
-            x_l = np.zeros(self.C, dtype=np.float32)
+        for vid_i, v in enumerate(video_cache_index):
+            if v == -1:
+                continue
+            x_s[vid_i] = self.features.video_freq_short.get(v, 0) / self.features.video_hist_short.maxlen
+            x_l[vid_i] = self.features.video_freq_long.get(v, 0) / self.features.video_hist_long.maxlen
 
-            for vid_i, v in enumerate(video_cache_index):
-                if v == -1:
-                    continue
-                x_s[vid_i] = self.features.video_freq_short.get(v, 0) / self.features.video_hist_short.maxlen
-                x_l[vid_i] = self.features.video_freq_long.get(v, 0) / self.features.video_hist_long.maxlen
+        z_s = np.array(
+            [self.features.video_freq_short.get(vid, 0) / self.features.video_hist_short.maxlen], dtype=np.float32
+        )
+        z_l = np.array(
+            [self.features.video_freq_long.get(vid, 0) / self.features.video_hist_long.maxlen], dtype=np.float32
+        )
 
-            z_s = np.array(
-                [self.features.video_freq_short.get(vid, 0) / self.features.video_hist_short.maxlen], dtype=np.float32
-            )
-            z_l = np.array(
-                [self.features.video_freq_long.get(vid, 0) / self.features.video_hist_long.maxlen], dtype=np.float32
-            )
+        features_0 = np.concatenate([x_s, x_l, z_s, z_l], axis=0)
 
-            features = np.concatenate([x_s, x_l, z_s, z_l], axis=0)
-            return features
-        else:
-            
-            vid_idx = self.env.mec_cache.get_video_cache_idx(vid)
-            vp_tiles = tile_cache_index[vid_idx]
-            
-            y_s = np.zeros(self.k, dtype=np.float32)
-            y_l = np.zeros(self.k, dtype=np.float32)
+        vid_idx = self.env.mec_cache.get_video_cache_idx(vid)
+        vp_tiles = tile_cache_index[vid_idx]
+        
+        y_s = np.zeros(self.k, dtype=np.float32)
+        y_l = np.zeros(self.k, dtype=np.float32)
 
-            for til_i, t in enumerate(vp_tiles):
-                if t == -1:
-                    continue
-                y_s[til_i] = self.features.tile_freq_short.get((vid, t), 0) / self.features.tile_hist_short.maxlen
-                y_l[til_i] = self.features.tile_freq_long.get((vid, t), 0) / self.features.tile_hist_long.maxlen
+        for til_i, t in enumerate(vp_tiles):
+            if t == -1:
+                continue
+            y_s[til_i] = self.features.tile_freq_short.get((vid, t), 0) / self.features.tile_hist_short.maxlen
+            y_l[til_i] = self.features.tile_freq_long.get((vid, t), 0) / self.features.tile_hist_long.maxlen
 
-            z_s = np.zeros(len(viewport), dtype=np.float32)
-            z_l = np.zeros(len(viewport), dtype=np.float32)
+        z_s = np.zeros(len(viewport), dtype=np.float32)
+        z_l = np.zeros(len(viewport), dtype=np.float32)
 
-            for i, tile in enumerate(viewport):
-                z_s[i] = self.features.tile_freq_short.get((vid, tile), 0) / self.features.tile_hist_short.maxlen
-                z_l[i] = self.features.tile_freq_long.get((vid, tile), 0) / self.features.tile_hist_long.maxlen
+        for i, tile in enumerate(viewport):
+            z_s[i] = self.features.tile_freq_short.get((vid, tile), 0) / self.features.tile_hist_short.maxlen
+            z_l[i] = self.features.tile_freq_long.get((vid, tile), 0) / self.features.tile_hist_long.maxlen
 
-            features = np.concatenate([y_s, y_l, z_s, z_l], axis=0)
-            return features
+        features_1 = np.concatenate([y_s, y_l, z_s, z_l], axis=0)
+        return (features_0, features_1)
 
     def reset(self):
         obs, info = self.env.reset()
