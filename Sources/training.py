@@ -91,13 +91,6 @@ UserTransition = datatypes.UserTransition  # noqa: F401
 CachePolicy = datatypes.CachePolicy
 CacheKey = datatypes.CacheKey  # noqa: F401
 
-# Config and debugger binding
-cfg = config.Config()
-cfg.filename = (
-    f"drl_kulkani_softup_lrdecay{cfg.learning_rate_decay}_c{cfg.cache_size}_"
-    f"ar{cfg.arrival_rate}_z{cfg.zipf_alpha}.csv"
-)
-
 # Your debugger appears to expose an object (with .log/.save_results)
 # named `debug` inside the module. Keep that instance.
 debugger = debugger.debug
@@ -260,23 +253,27 @@ def train_rl_agent(trial_config: Dict[str, Any]) -> None:
     logger.info("RL training started with config: %s", trial_config)
     date_dir = pd.Timestamp.now().strftime("%Y-%m-%d_%H-%M")
 
-    run_cfg = config.Config()
-    run_cfg.filename = cfg.filename
+    cfg = config.Config()
+    
     for key, value in trial_config.items():
-        if hasattr(run_cfg, key):
-            setattr(run_cfg, key, value)
+        if hasattr(cfg, key):
+            setattr(cfg, key, value)
 
-    debug_path = Path(run_cfg.path_results) / date_dir
+    cfg.filename =  (
+        f"raytune_lrdecay{cfg.learning_rate}_batch{cfg.batch_size}_gamma{cfg.gamma}_optm{cfg.optimizer}_hid{cfg.hidden_dim}.csv"
+    )
+
+    debug_path = Path(cfg.path_results) / date_dir
     debug_path.mkdir(parents=True, exist_ok=True)
 
     # Lazy import to avoid circulars if any
     from Training.TrainingManager import TrainingManager
 
-    manager = TrainingManager(run_cfg)
+    manager = TrainingManager(cfg)
     tb_logger = SummaryWriter(log_dir=str(debug_path))
 
     try:
-        for ep in range(run_cfg.n_episodes):
+        for ep in range(cfg.n_episodes):
             (
                 total_reward,
                 hits,
@@ -293,8 +290,8 @@ def train_rl_agent(trial_config: Dict[str, Any]) -> None:
 
             # Persist to CSV
             save_training_results(
-                path_=run_cfg.path_results,
-                filename=run_cfg.filename,
+                path_=cfg.path_results,
+                filename=cfg.filename,
                 ep=ep,
                 total_reward=total_reward,
                 cache_hits=hits,
@@ -354,7 +351,6 @@ def train_rl_agent(trial_config: Dict[str, Any]) -> None:
 # Main
 # --------------------------------------------------------------------------------------
 
-
 def _short_trial_dirname_creator(trial) -> str:
     return f"t_{trial.trial_id}"
 
@@ -387,16 +383,19 @@ def main() -> None:
             mode="max",
             perturbation_interval=160,
             hyperparam_mutations={
-                "lr": lambda: 10 ** np.random.uniform(-4, -1),
+                "learning_rate": lambda: 10 ** np.random.uniform(-4, -1),
                 "batch_size": [64, 128, 256],
                 "optimizer": ["adam", "sgd"],
+                "hidden_dims": [64, 128, 256],
             },
         )
 
         base_config = {
-            "lr": tune.loguniform(1e-4, 1e-1),
+            "gamma": tune.uniform(0.9, 0.999),
+            "learning_rate": tune.loguniform(1e-4, 1e-1),
             "batch_size": tune.choice([64, 128, 256]),
             "optimizer": tune.choice(["adam", "sgd"]),
+            "hidden_dim": tune.choice([64, 128, 256]),
         }
 
         # Keep local path short to avoid TensorBoard file issues on Windows
@@ -419,7 +418,7 @@ def main() -> None:
             analysis = tune.run(
                 train_rl_agent,
                 scheduler=scheduler,
-                num_samples=4,
+                num_samples=10,
                 reuse_actors=True,
                 config=run_config,
                 name=f"mmsp_pbt_s{seed}",

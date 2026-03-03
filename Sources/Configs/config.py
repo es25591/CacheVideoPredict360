@@ -42,6 +42,7 @@ class Config:
     buffer_capacity: int = 2000
     nb_interval: int = 200  # interval to update target network
     n_step: int = 1000
+    optimizer: str = "adam"  # "adam" or "sgd"
 
     h_short: int = 300   # sliding windows for popularity (Section VI-A)
     h_long: int = 1000

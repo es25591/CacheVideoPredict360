@@ -41,16 +41,23 @@ class EnhWorker:
         self.policy_net = MultiHeadQNetwork(
             self.state_dim,
             self.action_dim,
-            num_heads=4
+            num_heads=4,
+            hidden_dim=cfg.hidden_dim
         ).to(self.device)
         self.target_net = MultiHeadQNetwork(
             self.state_dim,
             self.action_dim,
-            num_heads=4
+            num_heads=4,
+            hidden_dim=cfg.hidden_dim
         ).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
-        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=cfg.learning_rate)
+        if cfg.optimizer == "adam":
+            self.optimizer = optim.Adam(self.policy_net.parameters(), lr=cfg.learning_rate)
+        elif cfg.optimizer == "sgd":
+            self.optimizer = optim.SGD(self.policy_net.parameters(), lr=cfg.learning_rate)
+        else:
+            raise ValueError(f"Unsupported optimizer: {cfg.optimizer}")
 
         self.scheduler = optim.lr_scheduler.ExponentialLR(
             self.optimizer, gamma=cfg.learning_rate_decay
