@@ -1,7 +1,13 @@
+import os 
+
 import ray
 import numpy as np
 from ray import tune
 from ray.tune.schedulers import ASHAScheduler
+from ray.tune.logger import CSVLoggerCallback, JsonLoggerCallback
+
+os.environ["TUNE_DISABLE_AUTO_CALLBACK_LOGGERS"] = "1"
+
 
 def train_fn(config):
     # Simulate training - better configs learn faster
@@ -35,7 +41,7 @@ scheduler = ASHAScheduler(
 analysis = tune.run(
     train_fn,
     config=config,
-    num_samples=20,      # Start 20 trials
+    num_samples=4,      # Start 20 trials
     scheduler=scheduler,
     metric="accuracy",
     mode="max",
@@ -46,5 +52,9 @@ analysis = tune.run(
         max_report_frequency=30,        # Update every 30 seconds
         print_intermediate_tables=True,
         metric_columns=["accuracy", "step", "training_iteration"]
-    )
+    ), 
+    callbacks=[
+        CSVLoggerCallback(),
+        JsonLoggerCallback(),
+    ]
 )

@@ -383,6 +383,7 @@ def main() -> None:
             mode="max",
             perturbation_interval=160,
             hyperparam_mutations={
+                "gamma": lambda: np.random.uniform(0.9, 0.999),
                 "learning_rate": lambda: 10 ** np.random.uniform(-4, -1),
                 "batch_size": [64, 128, 256],
                 "optimizer": ["adam", "sgd"],

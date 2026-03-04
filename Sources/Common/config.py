@@ -11,7 +11,7 @@ class Config:
     zipf_alpha: float = 0.8
     n_videos: int = 500
     n_gops: int = 30
-    user_session_length: int = 30
+    user_session_length: int = 60
     n_layers: int = 2
     n: int = 4
     m: int = 3
@@ -23,7 +23,7 @@ class Config:
     enh_layer_size: float = 1.5e+7  # 15 MB
     total_video_size: float = n_videos * n_gops * (bas_layer_size  + viewport * (enh_layer_size / n_tiles))  # total size of all videos in bytes
 
-    cache_capacity_percent: float = 0.1  # 10% of the total video size
+    cache_capacity_percent: float = 0.2  # 20% of the total video size
     cache_capacity: float = cache_capacity_percent * total_video_size
     cache_size: int = int(cache_capacity_percent * n_videos)
 
@@ -69,18 +69,22 @@ class Config:
     path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
     path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset\Trajectories'
 
-    filename: str = f"dqn_lrdecay{learning_rate_decay}_c{cache_size}_ar{arrival_rate}_z{zipf_alpha}_gamma{gamma}.csv"
+    filename: str = f"lrdecay{learning_rate_decay}_c{cache_size}_ar{arrival_rate}_z{zipf_alpha}_gamma{gamma}.csv"
 
     state_dim: int = 10 * cache_size + 2 # 10*C + 2 = (2C + 2Ck) * 2 + 2 (Section VI-A)
     action_dim: int = 2  # 0 = Pass, 1 = Cache
     hidden_dim: int = 128
 
-    action_dim_meta: int = cache_size + 1
-    action_dim_ctrl: int = viewport + 1
+    action_dim_base_focus: int = cache_size + 1
+    action_dim_enh_focus: int = viewport + 1
 
-    state_dim_meta: int = 2 * cache_size + 2 
-    state_dim_ctrl: int = 2 * viewport + 2 * viewport
+    state_dim_base_focus: int = 2 * cache_size + 2 
+    state_dim_enh_focus: int = 2 * viewport + 2 * viewport
 
+    hidden_dim_base_focus: int = 512
+    hidden_dim_enh_focus: int = 128
+
+    has_warmup: int = True
     ### Additional configuration parameters can be added here as needed
 
     init_type: str = "normal"  # "normal" or "orthogonal"
@@ -105,3 +109,8 @@ class Config:
 
     def __dict__(self):
         return {k: getattr(self, k) for k in self.__annotations__.keys()}
+
+    def __str__(self):
+        return "\n".join(f"{k}: {getattr(self, k)}" for k in self.__annotations__.keys())
+
+    
