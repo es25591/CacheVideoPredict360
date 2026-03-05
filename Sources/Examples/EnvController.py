@@ -61,7 +61,7 @@ CacheKey = datatypes.CacheKey
 
 cfg = config.Config()
 cfg.filename = f"ctrl_eps{cfg.epsilon_start}_lrdecay{cfg.learning_rate_decay}_gamma{cfg.gamma}.csv"
-cfg.state_dim_ctrl = 2 * cfg.viewport + 2 * cfg.viewport 
+cfg.state_dim_enh_focus = 2 * cfg.viewport + 2 * cfg.viewport 
 
 debugger = debugger.debug
 
