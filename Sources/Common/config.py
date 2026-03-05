@@ -23,7 +23,7 @@ class Config:
     enh_layer_size: float = 1.5e+7  # 15 MB
     total_video_size: float = n_videos * n_gops * (bas_layer_size  + viewport * (enh_layer_size / n_tiles))  # total size of all videos in bytes
 
-    cache_capacity_percent: float = 0.2  # 20% of the total video size
+    cache_capacity_percent: float = 0.1  # 10% of the total video size
     cache_capacity: float = cache_capacity_percent * total_video_size
     cache_size: int = int(cache_capacity_percent * n_videos)
 
@@ -55,9 +55,9 @@ class Config:
     # Paths for data and results
 
     ### Local Laptop
-    # path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
-    # path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
-    # path_trajectories: str = '/home/eduardo/Workspace/CacheVideoPredict360/Dataset/Trajectories'
+    path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
+    path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
+    path_trajectories: str = '/home/eduardo/Workspace/CacheVideoPredict360/Dataset/Trajectories'
 
     ### CERES
     # path_data: str = '/home/es25591/CacheVideoPredict360/Data'
@@ -65,9 +65,9 @@ class Config:
     # path_trajectories: str = '/home/es25591/CacheVideoPredict360/Dataset/Trajectories'
 
     ### Local 6G Lab
-    path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
-    path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
-    path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset\Trajectories'
+    # path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
+    # path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
+    # path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset\Trajectories'
 
     filename: str = f"lrdecay{learning_rate_decay}_c{cache_size}_ar{arrival_rate}_z{zipf_alpha}_gamma{gamma}.csv"
 
@@ -83,7 +83,9 @@ class Config:
 
     hidden_dim_base_focus: int = 512
     hidden_dim_enh_focus: int = 128
-
+    hidden_dim_focus: int = 1024
+    hidden_dims_focus: tuple = (512, 1024, 512)
+    
     has_warmup: int = True
     ### Additional configuration parameters can be added here as needed
 
@@ -112,5 +114,3 @@ class Config:
 
     def __str__(self):
         return "\n".join(f"{k}: {getattr(self, k)}" for k in self.__annotations__.keys())
-
-    
