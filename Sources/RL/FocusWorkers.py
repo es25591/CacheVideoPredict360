@@ -71,25 +71,56 @@ class FocusWorker:
         self.loss_fn = nn.MSELoss()
         self.nb_interval = cfg.nb_interval
         
-    def select_action(self, state):
-        # Epsilon-greedy exploration
+    # def select_action(self, state):
+    #     # Epsilon-greedy exploration
+    #     if random.random() < self.epsilon:
+    #         a_base = random.randint(0, self.action_dim_base - 1)
+    #         a_enh = [random.randint(0, self.action_dim_enh - 1) for _ in range(4)]
+    #         return [a_base] + a_enh  # Returns list: [base, enh1, enh2, enh3, enh4]
+
+    #     # Exploitation
+    #     state_t = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
+    #     with torch.no_grad():
+    #         q_base, q_enh = self.policy_net(state_t)
+            
+    #         a_base = q_base.argmax(dim=1).item()
+    #         a_enh = q_enh.argmax(dim=2).squeeze(0).tolist()
+            
+    #         return [a_base] + a_enh
+
+    def select_action(self, state, video_cache_idx):
+
+        state_t = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
+
         if random.random() < self.epsilon:
             a_base = random.randint(0, self.action_dim_base - 1)
-            a_enh = [random.randint(0, self.action_dim_enh - 1) for _ in range(4)]
-            return [a_base] + a_enh  # Returns list: [base, enh1, enh2, enh3, enh4]
+        else:
+            with torch.no_grad():
+                q_base, _ = self.policy_net(state_t) 
+            a_base = torch.argmax(q_base, dim=1).item()
 
-        # Exploitation
-        state_t = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
-        with torch.no_grad():
-            q_base, q_enh = self.policy_net(state_t)
+        is_video_available = (video_cache_idx != -1) or (a_base != 0)
+        
+        # 3. Prepare the Enhancement Mask based on that decision
+        enh_mask = torch.ones((1, 4, self.action_dim_enh), dtype=torch.bool)
+        if not is_video_available:
+            enh_mask[:, :, 1:] = False 
+        
+        # 5. Select Enhancement Actions
+        if random.random() < self.epsilon:
+            a_enh = []
+            for h in range(4):
+                valid_indices = torch.where(enh_mask[0, h])[0].tolist()
+                a_enh.append(random.choice(valid_indices))
+        else:
+            with torch.no_grad():
+                _, q_enh = self.policy_net(state_t, enh_mask=enh_mask)
+            a_enh = torch.argmax(q_enh, dim=2).squeeze().tolist()
             
-            a_base = q_base.argmax(dim=1).item()
-            a_enh = q_enh.argmax(dim=2).squeeze(0).tolist()
-            
-            return [a_base] + a_enh
+        return [a_base] + a_enh
 
-    def remember(self, s, action, r, ns, done):
-        self.buffer.push(s, action, r, ns, done)
+    def remember(self, s, action, r, ns, done, is_cached):
+        self.buffer.push(s, action, r, ns, done, is_cached)
 
     def train_step(self):
         self.step += 1
@@ -98,13 +129,14 @@ class FocusWorker:
 
     def learn(self):
         batch = self.buffer.sample(self.batch_size)
-        s, a, r, ns, d = zip(*batch)
+        s, a, r, ns, d, is_cached = zip(*batch)
 
         s = torch.tensor(np.stack(s), dtype=torch.float32).to(self.device)
         ns = torch.tensor(np.stack(ns), dtype=torch.float32).to(self.device)
         a = torch.tensor(np.stack(a), dtype=torch.long).to(self.device) # Shape: (batch, 5)
         r = torch.tensor(r, dtype=torch.float32).to(self.device)
         d = torch.tensor(d, dtype=torch.float32).to(self.device)
+        is_cached = torch.tensor(is_cached, dtype=torch.bool).to(self.device)
 
         # Split actions back into Base and Enh
         a_base = a[:, 0]
@@ -121,19 +153,21 @@ class FocusWorker:
             
             # Base and Enh targets
             q_target_base = r + n_step_gamma * q_max_next_base * (1.0 - d)
+            
             # Need to unsqueeze r and d to broadcast properly against the 4 Enh heads
             q_target_enh = r.unsqueeze(1) + n_step_gamma * q_max_next_enh * (1.0 - d).unsqueeze(1)
 
         # ---------- Calculate Expected ----------
-        q_base, q_enh = self.policy_net(s)
-        
+        q_base, _ = self.policy_net(s)
+        _, q_enh = self.policy_net(s, enh_mask=is_cached)
+
         q_expected_base = q_base.gather(1, a_base.unsqueeze(1)).squeeze(1)
         q_expected_enh = q_enh.gather(2, a_enh.unsqueeze(2)).squeeze(2)
 
         # ---------- Combined Loss ----------
-        loss_base = self.loss_fn(q_expected_base, q_target_base)
+        loss_base = self.loss_fn(q_expected_base[~is_cached], q_target_base[~is_cached])
         loss_enh = self.loss_fn(q_expected_enh, q_target_enh)
-        
+
         loss = loss_base + loss_enh
 
         # Optimize

@@ -68,10 +68,15 @@ class FocusQNetwork(nn.Module):
             nn.Linear(h3, action_dim_enh) for _ in range(4)
         ])
 
-    def forward(self, x):
-        x = self.dropout(F.relu(self.fc1(x)))
-        x = self.dropout(F.relu(self.fc2(x)))
-        x = self.dropout(F.relu(self.fc3(x)))
+    def forward(self, x, enh_mask=None):
+        # x = self.dropout(F.relu(self.fc1(x)))
+        # x = self.dropout(F.relu(self.fc2(x)))
+        # x = self.dropout(F.relu(self.fc3(x)))
+
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc3(x))
+
 
         # Compute Base Q-values: Shape (batch_size, action_dim_base)
         q_base = self.base_head(x) 
@@ -80,4 +85,72 @@ class FocusQNetwork(nn.Module):
         q_enh = [head(x) for head in self.enh_heads]
         q_enh = torch.stack(q_enh, dim=1) 
         
+        if enh_mask is not None:
+            if enh_mask.dim() == 1:
+                # 1. Change [32] -> [32, 1, 1]
+                # 2. This allows it to automatically broadcast across 4 heads and 5 actions
+                enh_mask = enh_mask.view(-1, 1, 1)
+
+            q_enh = q_enh.masked_fill(~enh_mask, -1e9)
+
+        return q_base, q_enh
+    
+
+
+# With dependency between Base and Enhancements (i.e. Enhancement heads get the Base action as input)
+class DependentFocusQNetwork(nn.Module):
+    def __init__(
+        self, 
+        state_dim, 
+        action_dim_base, 
+        action_dim_enh, 
+        hidden_dims=(256, 128, 64),
+        dropout_p=0.2
+    ):
+        super().__init__()
+
+        h1, h2, h3 = hidden_dims
+        
+        # Shared representation layers
+        self.fc1 = nn.Linear(state_dim, h1)
+        self.fc2 = nn.Linear(h1, h2)
+        self.fc3 = nn.Linear(h2, h3)
+        
+        self.dropout = nn.Dropout(p=dropout_p)
+        
+        # Base Focus Head (1 head)
+        self.base_head = nn.Linear(h3, action_dim_base)
+        
+        self.base_emb = nn.Embedding(action_dim_base, 16) 
+        
+        # Enhancement Focus Heads (4 heads)
+        self.enh_heads = nn.ModuleList([
+            nn.Linear(h3 + 16, action_dim_enh) for _ in range(4)
+        ])
+
+    def forward(self, x, base_action=None, enh_mask=None):
+        # x = self.dropout(F.relu(self.fc1(x)))
+        # x = self.dropout(F.relu(self.fc2(x)))
+        # x = self.dropout(F.relu(self.fc3(x)))
+
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc3(x))
+
+        # Compute Base Q-values: Shape (batch_size, action_dim_base)
+        q_base = self.base_head(x) 
+
+        if base_action is None:
+            return q_base, None
+
+        z_base = self.base_emb(base_action) # (batch, 16)
+
+        x_enh = torch.cat([x, z_base], dim=-1)
+
+        q_enh = [head(x_enh) for head in self.enh_heads]
+        q_enh = torch.stack(q_enh, dim=1)
+        
+        if enh_mask is not None:
+            q_enh = q_enh.masked_fill(~enh_mask, -1e9)
+            
         return q_base, q_enh

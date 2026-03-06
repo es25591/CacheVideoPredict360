@@ -239,3 +239,4 @@ class NetworkAdapter:
     
     def env_is_done(self) -> bool:
         return self.env.users_env.all_users_done()
+    
