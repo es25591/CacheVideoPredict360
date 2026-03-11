@@ -23,16 +23,16 @@ class NStepReplayBuffer:
         self.n_step = n_step
         self.gamma = gamma
 
-    def push(self, s, a, r, ns, done, is_cached):
-        self.n_step_buffer.append((s, a, r, ns, done, is_cached))
+    def push(self, s, a, r, ns, done):
+        self.n_step_buffer.append((s, a, r, ns, done))
         if len(self.n_step_buffer) < self.n_step:
             return
 
         # Compute N-step discounted reward
         # G = r1 + gamma*r2 + ... + gamma^(n-1)*rn
         reward, next_state, done_ = self._get_n_step_info()
-        state, action, _, _, _, is_cached = self.n_step_buffer[0]
-        self.memory.append((state, action, reward, next_state, done_, is_cached))
+        state, action, _, _, _ = self.n_step_buffer[0]
+        self.memory.append((state, action, reward, next_state, done_))
 
     def _get_n_step_info(self):
         reward = 0

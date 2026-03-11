@@ -16,7 +16,7 @@ import torch.nn.functional as F
 
 from Sources.Core.device import resolve_torch_device
 from Sources.RL.Buffers import NStepReplayBuffer
-from Sources.RL.Networks import QNetwork, MultiHeadQNetwork, FocusQNetwork
+from Sources.RL.Networks import HierarchicalDQNet, QNetwork, MultiHeadQNetwork, FocusQNetwork, DiscretePDQN
 
 
 class FocusWorker:
@@ -196,6 +196,146 @@ class FocusWorker:
 
     def reset_step(self):
         self.step = 0
+
+class PDQNWorker:
+    def __init__(self, cfg, debugger=None):
+        self.cfg = cfg
+        self.debugger = debugger
+
+        self.step = 0
+        self.n_step = cfg.n_step
+        self.state_dim = cfg.state_dim_base_focus
+        
+        # Now requires both action dimensions
+        self.action_dim_base = cfg.action_dim_base_focus
+        self.action_dim_enh = cfg.action_dim_enh_focus
+
+        self.gamma = cfg.gamma
+        self.epsilon = cfg.epsilon_start
+        self.epsilon_min = cfg.epsilon_min
+        self.epsilon_decay = cfg.epsilon_decay
+        self.batch_size = cfg.batch_size
+        self.tau = cfg.tau
+        self.device = resolve_torch_device()
+
+        self.buffer = NStepReplayBuffer(cfg.buffer_capacity, self.n_step, self.gamma)
+
+        # Initialize the P-DQN architecture
+        self.policy_net = HierarchicalDQNet(
+            self.state_dim, 
+            self.action_dim_base, 
+            self.action_dim_enh, 
+            hidden_dim=cfg.hidden_dim_base_focus
+        ).to(self.device)
+        
+        self.target_net = HierarchicalDQNet(
+            self.state_dim, 
+            self.action_dim_base, 
+            self.action_dim_enh, 
+            hidden_dim=cfg.hidden_dim_base_focus
+        ).to(self.device)
+        self.target_net.load_state_dict(self.policy_net.state_dict())
+
+        if cfg.optimizer == "adam":
+            self.optimizer = optim.Adam(self.policy_net.parameters(), lr=cfg.learning_rate)
+        elif cfg.optimizer == "sgd":
+            self.optimizer = optim.SGD(self.policy_net.parameters(), lr=cfg.learning_rate)
+        else:
+            raise ValueError(f"Unsupported optimizer: {cfg.optimizer}")
+
+        self.scheduler = optim.lr_scheduler.ExponentialLR(
+            self.optimizer, gamma=cfg.learning_rate_decay
+        )
+
+        self.loss_fn = nn.MSELoss()
+        self.nb_interval = cfg.nb_interval
+
+    def select_action(self, state):
+        if random.random() < self.epsilon:
+            a_base = random.randint(0, self.action_dim_base - 1)
+            a_enh = [random.randint(0, self.action_dim_enh - 1) for _ in range(4)]
+            return [a_base] + a_enh
+
+        with torch.no_grad():
+            state_t = torch.tensor(state, dtype=torch.float32).to(self.device).unsqueeze(0)
+            
+            # The network returns the base Q-values, enh Q-values, and the greedily chosen enhancements
+            _, _, chosen_base, chosen_enh = self.policy_net(state_t)
+            
+            a_base = chosen_base.item()
+            a_enh = chosen_enh.squeeze(0).tolist()
+            
+            return [a_base] + a_enh
+
+    def remember(self, s, action, r, ns, done):
+        # 'action' is expected to be a list of 5 elements
+        self.buffer.push(s, action, r, ns, done)
+
+    def train_step(self):
+        self.step += 1
+        if self.step % self.nb_interval == 0 and len(self.buffer) >= self.batch_size:
+            self.learn()
+
+    def learn(self):
+        batch = self.buffer.sample(self.batch_size)
+        s, a, r, ns, d = zip(*batch)
+
+        s = torch.tensor(np.stack(s), dtype=torch.float32).to(self.device)
+        ns = torch.tensor(np.stack(ns), dtype=torch.float32).to(self.device)
+        a = torch.tensor(np.stack(a), dtype=torch.int64).to(self.device)
+        r = torch.tensor(r, dtype=torch.float32).to(self.device)
+        d = torch.tensor(d, dtype=torch.float32).to(self.device)
+
+        # Split actions
+        a_base = a[:, 0]
+        a_enh = a[:, 1:]
+
+        # ---------- Target ----------
+        with torch.no_grad():
+            # Pass next state. Without 'chosen_enh_actions', it greedily picks the best next parameters
+            next_q_base, next_q_enh, _, _ = self.target_net(ns)
+            
+            q_max_next_base = next_q_base.max(1)[0]
+            q_max_next_enh = next_q_enh.max(dim=2)[0]
+            
+            n_step_gamma = self.gamma ** self.n_step
+            q_target_base = r + n_step_gamma * q_max_next_base * (1.0 - d)
+            q_target_enh = r.unsqueeze(1) + n_step_gamma * q_max_next_enh * (1.0 - d).unsqueeze(1)
+
+        # ---------- Expected ----------
+        # Crucially, pass the ACTUAL enhancements taken into the policy net to condition the Base Q-value
+        q_base, q_enh, _, _ = self.policy_net(s)
+
+        q_expected_base = q_base.gather(1, a_base.unsqueeze(1)).squeeze(1)
+        q_expected_enh = q_enh.gather(2, a_enh.unsqueeze(2)).squeeze(2)
+
+        # ---------- Loss ----------
+        loss_base = self.loss_fn(q_expected_base, q_target_base)
+        loss_enh = self.loss_fn(q_expected_enh, q_target_enh)
+
+        loss = loss_base + loss_enh
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        
+        self.update_target()
+
+        if self.debugger:
+            self.debugger.log('train_loss_pdqn', loss.item())
+            self.debugger.log('train_loss_base', loss_base.item())
+            self.debugger.log('train_loss_enh', loss_enh.item())
+            self.debugger.log('epsilon', self.epsilon)
+
+    def update_target(self):
+        self.target_net.load_state_dict(self.policy_net.state_dict())
+
+    def soft_update(self):
+        for tparam, pparam in zip(self.target_net.parameters(), self.policy_net.parameters()):
+            tparam.data.copy_(tparam.data * (1.0 - self.tau) + pparam.data * self.tau)
+
+    def update_epsilon(self):
+        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
 class BaseWorker:
     def __init__(self, cfg, debugger=None):
