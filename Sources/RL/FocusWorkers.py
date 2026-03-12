@@ -318,7 +318,8 @@ class PDQNWorker:
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-        
+        self.scheduler.step()
+
         self.update_target()
 
         if self.debugger:
