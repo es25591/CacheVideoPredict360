@@ -183,43 +183,33 @@ class NetworkAdapter:
     def build_observation(self, req) -> np.ndarray:
         
         if req is None:
-            return np.zeros(self.C * 2 + 2, dtype=np.float32), np.zeros(self.k * 2 + self.k * 2, dtype=np.float32)
+            return np.zeros(self.cfg.state_dim, dtype=np.float32) 
         
         vid = req["video"]
         viewport = req["viewport"]
         
-        video_cache_index = self.env.mec_cache.policy.video_idx
-        tile_cache_index = self.env.mec_cache.policy.tile_idx
+        cache = self.env.mec_cache.policy.cache
         
-        x_s = np.zeros(self.C, dtype=np.float32)
-        x_l = np.zeros(self.C, dtype=np.float32)
+        x_s = np.zeros(len(cache), dtype=np.float32)
+        x_l = np.zeros(len(cache), dtype=np.float32)
 
-        for vid_i, v in enumerate(video_cache_index):
-            if v == -1:
+        for i, (video, tile) in enumerate(cache):
+            if video == -1:
                 continue
-            x_s[vid_i] = self.features.video_freq_short.get(v, 0) / self.features.video_hist_short.maxlen
-            x_l[vid_i] = self.features.video_freq_long.get(v, 0) / self.features.video_hist_long.maxlen
+            
+            if tile == -1:
+                x_s[i] = self.features.video_freq_short.get(video, 0) / self.features.video_hist_short.maxlen
+                x_l[i] = self.features.video_freq_long.get(video, 0) / self.features.video_hist_long.maxlen
+            else:
+                x_s[i] = self.features.tile_freq_short.get((video, tile), 0) / self.features.tile_hist_short.maxlen
+                x_l[i] = self.features.tile_freq_long.get((video, tile), 0) / self.features.tile_hist_long.maxlen
 
-        z_s = np.array(
+        y_s = np.array(
             [self.features.video_freq_short.get(vid, 0) / self.features.video_hist_short.maxlen], dtype=np.float32
         )
-        z_l = np.array(
+        y_l = np.array(
             [self.features.video_freq_long.get(vid, 0) / self.features.video_hist_long.maxlen], dtype=np.float32
         )
-
-        features_0 = np.concatenate([x_s, x_l, z_s, z_l], axis=0)
-
-        vid_idx = self.env.mec_cache.get_video_cache_idx(vid)
-        vp_tiles = tile_cache_index[vid_idx]
-        
-        y_s = np.zeros(self.k, dtype=np.float32)
-        y_l = np.zeros(self.k, dtype=np.float32)
-
-        for til_i, t in enumerate(vp_tiles):
-            if t == -1:
-                continue
-            y_s[til_i] = self.features.tile_freq_short.get((vid, t), 0) / self.features.tile_hist_short.maxlen
-            y_l[til_i] = self.features.tile_freq_long.get((vid, t), 0) / self.features.tile_hist_long.maxlen
 
         z_s = np.zeros(len(viewport), dtype=np.float32)
         z_l = np.zeros(len(viewport), dtype=np.float32)
@@ -227,9 +217,9 @@ class NetworkAdapter:
         for i, tile in enumerate(viewport):
             z_s[i] = self.features.tile_freq_short.get((vid, tile), 0) / self.features.tile_hist_short.maxlen
             z_l[i] = self.features.tile_freq_long.get((vid, tile), 0) / self.features.tile_hist_long.maxlen
-
-        features_1 = np.concatenate([y_s, y_l, z_s, z_l], axis=0)
-        return (features_0, features_1)
+        
+        features = np.concatenate([x_s, x_l, y_s, y_l, z_s, z_l], axis=0)
+        return features
 
     def reset(self):
         obs, info = self.env.reset()

@@ -32,7 +32,7 @@ def build_environment(cfg):
     """Construct the full multi-component environment wrapper."""
     from importnb import Notebook
     with Notebook():
-        from Labs.Policy import DrlPolicy
+        from Labs.Policy import DrlPolicy, MMSPPolicy
         from Labs.CacheEngine import CacheEngineEnv
         from Labs.UserRequest import UserRequestEvents
         from Labs.EnvWrapper import EnvWrapper
@@ -40,8 +40,9 @@ def build_environment(cfg):
     du_caches = []
 
     # DRL Caching Policy
-    policy = DrlPolicy(cfg=cfg)
-
+    # policy = DrlPolicy(cfg=cfg)
+    policy = MMSPPolicy(cfg=cfg)
+    
     # MEC Cache Engine
     mec_cache = CacheEngineEnv(
         n_users=cfg.n_users,

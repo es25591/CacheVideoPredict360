@@ -204,11 +204,11 @@ class PDQNWorker:
 
         self.step = 0
         self.n_step = cfg.n_step
-        self.state_dim = cfg.state_dim_base_focus
+        self.state_dim = cfg.state_dim
         
         # Now requires both action dimensions
-        self.action_dim_base = cfg.action_dim_base_focus
-        self.action_dim_enh = cfg.action_dim_enh_focus
+        self.action_dim_base = cfg.action_dim
+        self.action_dim_enh = cfg.action_dim
 
         self.gamma = cfg.gamma
         self.epsilon = cfg.epsilon_start
