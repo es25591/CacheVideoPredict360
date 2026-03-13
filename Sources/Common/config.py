@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 
 class Config:
-    n_episodes: int = 300
+    n_episodes: int = 400
     max_steps: int = 10000
     n_nodes: int = 3
     n_users: int = 200
@@ -23,7 +23,7 @@ class Config:
     enh_layer_size: float = 1.5e+7  # 15 MB
     total_video_size: float = n_videos * n_gops * (bas_layer_size  + viewport * (enh_layer_size / n_tiles))  # total size of all videos in bytes
 
-    cache_capacity_percent: float = 0.20  # 15% of the total video size
+    cache_capacity_percent: float = 0.25  # 25% of the total video size
     cache_capacity: float = cache_capacity_percent * total_video_size
     cache_size: int = int(cache_capacity_percent * n_videos)
 
@@ -81,11 +81,11 @@ class Config:
     state_dim_base_focus: int = 2 * cache_size + 2 
     state_dim_enh_focus: int = 2 * viewport + 2 * viewport
 
-    hidden_dim_base_focus: int = 512
+    hidden_dim_base_focus: int = 256
     hidden_dim_enh_focus: int = 128
     hidden_dim_focus: int = 1024
     hidden_dims_focus: tuple = (512, 1024, 512)
-    
+
     has_warmup: int = True
     ### Additional configuration parameters can be added here as needed
 
@@ -95,7 +95,7 @@ class Config:
     n_agents: int = 1
     agent_idx: int = 0
     agent_type: str = "mlp"  # "mlp" or "transformer"
-    
+
     hidden_size: int = 128
     hidden_dim: int = 128
     attend_heads: int = 4
