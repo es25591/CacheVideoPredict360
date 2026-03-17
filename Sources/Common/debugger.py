@@ -183,6 +183,17 @@ class AgentDebugger:
 
         # print(f"Results saved to {filepath}")
 
+    def __str__(self):
+        summary = []
+        for key, values in self.data.items():
+            try:
+                arr = np.asarray(values, dtype=float)
+                mean = np.mean(arr)
+                std = np.std(arr)
+                summary.append(f"{key}: mean={mean:.4f}, std={std:.4f}, count={len(values)}")
+            except Exception:
+                summary.append(f"{key}: {values}")
+        return "\n".join(summary)
 
 debug = AgentDebugger()
 
