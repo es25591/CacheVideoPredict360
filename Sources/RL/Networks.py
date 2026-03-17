@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 
 class QNetwork(nn.Module):
-    def __init__(self, state_dim: int, action_dim: int, hidden_dim: int = 128):
+    def __init__(self, state_dim: int, action_dim: int, hidden_dim: int = 512):
         super().__init__()
         hidden = hidden_dim
         self.fc1 = nn.Linear(state_dim, hidden)
@@ -18,7 +18,7 @@ class QNetwork(nn.Module):
         return self.out(x)
 
 class MultiHeadQNetwork(nn.Module):
-    def __init__(self, state_dim, action_dim, num_heads=4, hidden_dim=128):
+    def __init__(self, state_dim, action_dim, num_heads=4, hidden_dim=512):
         super().__init__()
 
         # shared encoder

@@ -366,7 +366,7 @@ class BaseWorker:
         self.step = 0
         self.n_step = cfg.n_step
         self.state_dim = cfg.state_dim_base_focus
-        self.action_dim = cfg.action_dim # cfg.action_dim_base_focus
+        self.action_dim = cfg.action_dim_base_focus
 
         self.gamma = cfg.gamma
         self.epsilon = cfg.epsilon_start
