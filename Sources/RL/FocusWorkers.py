@@ -289,7 +289,8 @@ class PDQNWorker:
         # Split actions
         a_base = a[:, 0]
         a_enh = a[:, 1:]
-
+        # print(f"Batch shapes - s: {s.shape}, ns: {ns.shape}, a_base: {a_base.shape}, a_enh: {a_enh.shape}, r: {r.shape}, d: {d.shape}")
+                
         # ---------- Target ----------
         with torch.no_grad():
             # Pass next state. Without 'chosen_enh_actions', it greedily picks the best next parameters
@@ -299,8 +300,15 @@ class PDQNWorker:
             q_max_next_enh = next_q_enh.max(dim=2)[0]
             
             n_step_gamma = self.gamma ** self.n_step
+
             q_target_base = r + n_step_gamma * q_max_next_base * (1.0 - d)
             q_target_enh = r.unsqueeze(1) + n_step_gamma * q_max_next_enh * (1.0 - d).unsqueeze(1)
+
+            # Apply mask to target (forces target to 0 if base action is 0)
+            mask = (q_max_next_base > 0).float()
+            q_target_enh = mask.unsqueeze(1) * q_target_enh   # Shape: [Batch, 4]
+
+            # print(f"Target shapes - q_target_base: {q_target_base.shape}, q_target_enh: {q_target_enh.shape}")
 
         # ---------- Expected ----------
         # Crucially, pass the ACTUAL enhancements taken into the policy net to condition the Base Q-value
@@ -309,17 +317,29 @@ class PDQNWorker:
         q_expected_base = q_base.gather(1, a_base.unsqueeze(1)).squeeze(1)
         q_expected_enh = q_enh.gather(2, a_enh.unsqueeze(2)).squeeze(2)
 
-        # ---------- Loss ----------
-        loss_base = self.loss_fn(q_expected_base, q_target_base)
-        loss_enh = self.loss_fn(q_expected_enh, q_target_enh)
+        mask = (q_expected_base > 0).float()
+        q_expected_enh = mask.unsqueeze(1) * q_expected_enh   # Shape: [Batch, 4]
 
+        # ---------- Loss Calculation (L) ----------
+        
+        # Base Loss: L_base = E[(y^0 - Q^0)^2]
+        loss_base = self.loss_fn(q_expected_base, q_target_base)
+
+        # Enhancement Loss: L_enh = E[ 1/4 * sum_tau( m_t * (y^tau - Q^tau)^2 ) ]
+        # 1. Compute squared error element-wise
+        errors_enh = (q_expected_enh - q_target_enh) ** 2       # Shape: [Batch, 4]
+        
+        # 3. Compute mean (implements the 1/4 sum and Expectation over batch)
+        loss_enh = errors_enh.mean()
+
+        # Total Loss
         loss = loss_base + loss_enh
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
         self.scheduler.step()
-
+        
         self.update_target()
 
         if self.debugger:

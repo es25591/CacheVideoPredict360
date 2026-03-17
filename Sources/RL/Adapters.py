@@ -181,22 +181,22 @@ class NetworkAdapter:
         print(f"NetworkAdapter initialized with capacity: {self.C} videos, {self.k} tiles per video")
 
     def build_observation(self, req) -> np.ndarray:
-        
+
         if req is None:
             return np.zeros(self.cfg.state_dim, dtype=np.float32) 
-        
+
         vid = req["video"]
         viewport = req["viewport"]
-        
+
         cache = self.env.mec_cache.policy.cache
-        
+
         x_s = np.zeros(len(cache), dtype=np.float32)
         x_l = np.zeros(len(cache), dtype=np.float32)
 
         for i, (video, tile) in enumerate(cache):
             if video == -1:
                 continue
-            
+
             if tile == -1:
                 x_s[i] = self.features.video_freq_short.get(video, 0) / self.features.video_hist_short.maxlen
                 x_l[i] = self.features.video_freq_long.get(video, 0) / self.features.video_hist_long.maxlen
