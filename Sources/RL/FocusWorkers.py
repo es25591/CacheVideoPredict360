@@ -358,6 +358,36 @@ class MultiheadWorker:
     def update_epsilon(self):
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
+    def save(self, path="checkpoint.pth"):
+        checkpoint = {
+            'step': self.step,
+            'epsilon': self.epsilon,
+            'model_state_dict': self.policy_net.state_dict(),
+            'target_net_state_dict': self.target_net.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'scheduler_state_dict': self.scheduler.state_dict(),
+            # Optional: Save the config to ensure dimensions match on load
+            'cfg': self.cfg 
+        }
+        torch.save(checkpoint, path)
+        print(f"Successfully saved checkpoint to {path}")
+
+    def load(self, path="checkpoint.pth"):
+        # map_location ensures it works even if saved on GPU but loaded on CPU
+        checkpoint = torch.load(path, map_location=self.device)
+        
+        self.policy_net.load_state_dict(checkpoint['model_state_dict'])
+        self.target_net.load_state_dict(checkpoint['target_net_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        
+        self.step = checkpoint['step']
+        self.epsilon = checkpoint['epsilon']
+        
+        # Set to train mode
+        self.policy_net.train()
+        print(f"Successfully loaded checkpoint from {path} at step {self.step}")
+        
 class BaseWorker:
     def __init__(self, cfg, debugger=None):
         self.cfg = cfg
