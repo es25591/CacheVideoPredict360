@@ -197,7 +197,7 @@ class FocusWorker:
     def reset_step(self):
         self.step = 0
 
-class PDQNWorker:
+class MultiheadWorker:
     def __init__(self, cfg, debugger=None):
         self.cfg = cfg
         self.debugger = debugger
@@ -205,7 +205,7 @@ class PDQNWorker:
         self.step = 0
         self.n_step = cfg.n_step
         self.state_dim = cfg.state_dim
-        
+
         # Now requires both action dimensions
         self.action_dim_base = cfg.action_dim
         self.action_dim_enh = cfg.action_dim
@@ -258,7 +258,7 @@ class PDQNWorker:
 
         with torch.no_grad():
             state_t = torch.tensor(state, dtype=torch.float32).to(self.device).unsqueeze(0)
-            
+
             # The network returns the base Q-values, enh Q-values, and the greedily chosen enhancements
             _, _, chosen_base, chosen_enh = self.policy_net(state_t)
             
