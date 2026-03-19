@@ -275,6 +275,33 @@ class DependentFocusQNetwork(nn.Module):
             
         return q_base, q_enh
 
+class A2CNetwork(nn.Module):
+    def __init__(self, state_dim, action_dim):
+        super(A2CNetwork, self).__init__()
+        self.common = nn.Linear(state_dim, 256)
+        
+        # Actor head: Outputs probabilities for each tile/action
+        self.actor = nn.Sequential(
+            nn.Linear(256, action_dim)
+        )
+        
+        # Critic head: Outputs a single scalar value for the state
+        self.critic = nn.Linear(256, 1)
+
+    def forward(self, x, actions=None):
+        x = torch.relu(self.common(x))
+
+        value = self.critic(x).squeeze(-1)
+        logits = self.actor(x)
+        dist = torch.distributions.Categorical(logits=logits)
+
+        if actions is not None:
+            log_probs = dist.log_prob(actions)
+            entropy = dist.entropy()
+            return value, log_probs, entropy
+
+        return value, dist.probs
+        
 # import torch
 # import torch.nn as nn
 # import torch.nn.functional as F

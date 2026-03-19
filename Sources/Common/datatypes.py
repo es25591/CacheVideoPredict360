@@ -115,7 +115,10 @@ class VideoCategory(Enum):
     SPORTS = "Sports"
     FILM = "Film"
 
-
+# Weibull parameterization
+# Table I coefficients (alpha, beta, gamma) by category
+# Source: Proactive Video Chunks Caching and Processing... (WCNC'19), Table I.  (α, β, γ)  [P-square ≈ 0.999]
+# Note: keep category keys consistent in your dataset/taxonomy.
 @dataclass(frozen=True)
 class WeibullParams:
     """
@@ -259,5 +262,7 @@ if __name__ == "__main__":
     counter = {vid: samples.count(vid) for vid in set(samples)}
     print("Sample Counts:", counter)
 
-    first_50_count = sum(counter.get(vid, 0) for vid in range(1, 51))
-    print(f"Total requests for first 50 videos: {first_50_count}")
+    top_k_videos = 125
+    first_k_count = sum(counter.get(vid, 0) for vid in range(1, top_k_videos + 1))
+    print(f"Total first {top_k_videos} requests account {first_k_count} different videos.")
+    print(f"Percentage of requests for first {top_k_videos} videos: {first_k_count / len(samples) * 100:.2f}%")

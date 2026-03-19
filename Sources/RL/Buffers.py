@@ -51,14 +51,19 @@ class RolloutBuffer:
     def __init__(self, capacity: int = 2000):
         self.memory = deque(maxlen=capacity)
 
-    def push(self, s, a, l, v, r, d):
-        self.memory.append((s, a, l, v, r, d))
+    def push(self, s, a, r, ns, d):
+        self.memory.append((s, a, r, ns, d))
 
-    def sample(self):
-        return self.memory
-    
+    def sample(self, batch_size: int = None):
+        if batch_size is None:
+            return self.memory
+        return random.sample(self.memory, batch_size)
+
     def clear(self):
         self.memory.clear()
+
+    def __len__(self):
+        return len(self.memory)
 
 class NStepRolloutBuffer:
     def __init__(self, capacity, n_step, gamma):
@@ -67,14 +72,14 @@ class NStepRolloutBuffer:
         self.n_step = n_step
         self.gamma = gamma
 
-    def push(self, s, a, l, v, r, d):
-        self.n_step_buffer.append((s, a, l, v, r, d))
+    def push(self, s, a, r, ns, d):
+        self.n_step_buffer.append((s, a, r, ns, d))
         if len(self.n_step_buffer) < self.n_step:
             return
         
         reward, done_ = self._get_n_step_info()
-        state, action, log_prob, value, _, _ = self.n_step_buffer[0]
-        self.memory.append((state, action, log_prob, value, reward, done_))
+        state, action, _, _, _ = self.n_step_buffer[0]
+        self.memory.append((state, action, reward, done_))
 
     def _get_n_step_info(self):
         reward = 0
@@ -85,8 +90,10 @@ class NStepRolloutBuffer:
 
         return reward, self.n_step_buffer[-1][5]
     
-    def sample(self):
-        return self.memory
-    
+    def sample(self, batch_size: int = None):
+        if batch_size is None:
+            return self.memory
+        return random.sample(self.memory, batch_size)
+
     def clear(self):
         self.memory.clear()
