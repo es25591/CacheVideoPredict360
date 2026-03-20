@@ -282,7 +282,8 @@ class A2CNetwork(nn.Module):
         
         # Actor head: Outputs probabilities for each tile/action
         self.actor = nn.Sequential(
-            nn.Linear(256, action_dim)
+            nn.Linear(256, action_dim),
+            nn.Softmax(dim=-1)
         )
         
         # Critic head: Outputs a single scalar value for the state
@@ -291,8 +292,9 @@ class A2CNetwork(nn.Module):
     def forward(self, x, actions=None):
         x = torch.relu(self.common(x))
 
-        value = self.critic(x).squeeze(-1)
+        value = self.critic(x)
         logits = self.actor(x)
+        
         dist = torch.distributions.Categorical(logits=logits)
 
         if actions is not None:

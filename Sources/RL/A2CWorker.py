@@ -61,52 +61,49 @@ class A2CWorker:
         state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
-            _, action_probs = self.network(state)
+            value, action_probs = self.network(state)
 
         action = torch.multinomial(action_probs, 1)
+        log_prob = torch.log(action_probs[0, action.item()] + 1e-8)  # scalar
 
-        return action.item()
+        return action.item(), value.squeeze(), action_probs
 
-    def remember(self, state, action, reward, next_state, done):
-        self.buffer.push(state, action, reward, next_state, done)
+    def remember(self, log_prob, value, reward, next_state, done):
+        self.buffer.push(log_prob, value, reward, next_state, done)
 
     def train_step(self):
         if len(self.buffer) < self.batch_size:
             return
 
         self.learn()
-
         self.buffer.clear()
 
     def learn(self):
-        batch = self.buffer.sample()
-        s, a, r, sn, d = zip(*batch)
-
-        s = torch.FloatTensor(s).to(self.device)
-        a = torch.LongTensor(a).to(self.device)
-        r = torch.FloatTensor(r).to(self.device)
-        ns = torch.FloatTensor(sn).to(self.device)
-        d = torch.FloatTensor(d).to(self.device)
+        batch = self.buffer.get_all()
+        log_prob, value, reward, next_state, done = zip(*batch)
+        
+        log_prob = torch.stack(log_prob).to(self.device)
+        value = torch.stack(value).to(self.device)
+        reward = torch.FloatTensor(reward).to(self.device)
+        next_state = torch.FloatTensor(next_state).to(self.device)
+        done = torch.FloatTensor(done).to(self.device)  
 
         # Compute current values and advantages
-        values, log_probs, entropy = self.network(s, a)
         with torch.no_grad():
-            next_values, _ = self.network(ns)
-            targets = r + self.gamma * next_values * (1 - d)
-
-        advantages = targets - values
+            next_value, _ = self.network(next_state)
+            next_value = next_value.squeeze()
+            target_value = reward + self.gamma * next_value * (1 - done)
+            advantage = target_value - value
 
         # Compute losses
-        actor_loss = -(log_probs * advantages.detach()).mean()
-        critic_loss = self.loss_fn(values, targets)
-        entropy_loss = entropy.mean() 
-
-        total_loss = actor_loss + (0.5 * critic_loss) - (self.cfg.entropy_coef * entropy_loss)
-    
+        actor_loss = - (log_prob * advantage.detach()).mean()
+        critic_loss = self.loss_fn(value, target_value)
+        total_loss = actor_loss + critic_loss
+        
         # Optimize the network
         self.optimizer.zero_grad()
         total_loss.backward()
-        nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=0.5)
+        nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=0.5)    
         self.optimizer.step()
 
         self.debugger.log('train_loss', total_loss.item())
