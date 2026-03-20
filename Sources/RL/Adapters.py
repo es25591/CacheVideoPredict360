@@ -55,7 +55,7 @@ class FeatureAdapter:
 
         self.all_video_hist = []
 
-    def update_history(self, vid: int, tiles: list[int]):       
+    def update_history(self, vid: int, tiles: list[int]):
         self._update_window(self.video_hist_short, self.video_freq_short, vid)
         self._update_window(self.video_hist_long, self.video_freq_long, vid)
 

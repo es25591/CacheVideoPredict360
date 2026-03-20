@@ -293,9 +293,9 @@ class A2CNetwork(nn.Module):
         x = torch.relu(self.common(x))
 
         value = self.critic(x)
-        logits = self.actor(x)
+        probs = self.actor(x)
         
-        dist = torch.distributions.Categorical(logits=logits)
+        dist = torch.distributions.Categorical(probs=probs)
 
         if actions is not None:
             log_probs = dist.log_prob(actions)

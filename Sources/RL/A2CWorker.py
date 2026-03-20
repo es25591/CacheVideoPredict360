@@ -60,13 +60,13 @@ class A2CWorker:
     def select_action(self, state):
         state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
 
-        with torch.no_grad():
-            value, action_probs = self.network(state)
+        value, action_probs = self.network(state)
 
-        action = torch.multinomial(action_probs, 1)
-        log_prob = torch.log(action_probs[0, action.item()] + 1e-8)  # scalar
+        dist = torch.distributions.Categorical(probs=action_probs)
+        action = dist.sample()
+        log_prob = dist.log_prob(action).squeeze(0)
 
-        return action.item(), value.squeeze(), action_probs
+        return action.item(), value.squeeze(), log_prob
 
     def remember(self, log_prob, value, reward, next_state, done):
         self.buffer.push(log_prob, value, reward, next_state, done)
@@ -81,9 +81,9 @@ class A2CWorker:
     def learn(self):
         batch = self.buffer.get_all()
         log_prob, value, reward, next_state, done = zip(*batch)
-        
+
         log_prob = torch.stack(log_prob).to(self.device)
-        value = torch.stack(value).to(self.device)
+        value = torch.stack(value).to(self.device).squeeze()
         reward = torch.FloatTensor(reward).to(self.device)
         next_state = torch.FloatTensor(next_state).to(self.device)
         done = torch.FloatTensor(done).to(self.device)  
@@ -93,7 +93,8 @@ class A2CWorker:
             next_value, _ = self.network(next_state)
             next_value = next_value.squeeze()
             target_value = reward + self.gamma * next_value * (1 - done)
-            advantage = target_value - value
+
+        advantage = target_value - value
 
         # Compute losses
         actor_loss = - (log_prob * advantage.detach()).mean()
@@ -110,4 +111,3 @@ class A2CWorker:
 
     def update_epsilon(self):
         self.buffer.clear()
-        pass
