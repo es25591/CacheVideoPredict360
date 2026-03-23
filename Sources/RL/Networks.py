@@ -96,25 +96,43 @@ class FocusQNetwork(nn.Module):
         return q_base, q_enh
     
 class HierarchicalDQNet(nn.Module):
-    def __init__(self, state_dim, action_dim_base, action_dim_enh, hidden_dim=256):
+    def __init__(self, state_dim, action_dim_base, action_dim_enh, hidden_dim=256, hidden_dims=None):
         super().__init__()
         self.action_dim_enh = action_dim_enh
+
+        if hidden_dims is None:
+            hidden_dims = (hidden_dim,)
+        elif isinstance(hidden_dims, int):
+            hidden_dims = (hidden_dims,)
+        else:
+            hidden_dims = tuple(hidden_dims)
+
+        if len(hidden_dims) == 0:
+            raise ValueError("hidden_dims must contain at least one layer size")
+
+        last_dim = hidden_dims[-1]
         
         # --- 1. State Encoding Shared Layers ---
-        self.encoder = nn.Linear(state_dim, hidden_dim)
+        encoder_layers = []
+        in_dim = state_dim
+        for dim in hidden_dims:
+            encoder_layers.append(nn.Linear(in_dim, dim))
+            encoder_layers.append(nn.ReLU())
+            in_dim = dim
+        self.encoder = nn.Sequential(*encoder_layers)
         
         # --- 2. Base Action Head (Layer-1 Selection) ---
-        self.base_head = nn.Linear(hidden_dim, action_dim_base)
+        self.base_head = nn.Linear(last_dim, action_dim_base)
         
         # --- 3. Conditional Enhancement Heads (Layer-2 Parameters) ---
         # Each base action has its own set of enhancement parameters
         self.enh_heads = nn.ModuleList([
-            nn.Linear(hidden_dim, action_dim_enh) for _ in range(4)
+            nn.Linear(last_dim, action_dim_enh) for _ in range(4)
         ])
 
     def forward(self, state):
         # Step 1: Encode state and predict Base Q-values first
-        latent = F.relu(self.encoder(state))
+        latent = self.encoder(state)
         q_base = self.base_head(latent) # Shape: (batch, action_dim_base)
         
         # Step 2: Predict Q-values for all enhancement dimensions

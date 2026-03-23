@@ -225,14 +225,14 @@ class MultiheadWorker:
             self.state_dim, 
             self.action_dim_base, 
             self.action_dim_enh, 
-            hidden_dim=cfg.hidden_dim_base_focus
+            hidden_dims=cfg.hidden_dims_focus
         ).to(self.device)
         
         self.target_net = HierarchicalDQNet(
             self.state_dim, 
             self.action_dim_base, 
-            self.action_dim_enh, 
-            hidden_dim=cfg.hidden_dim_base_focus
+            self.action_dim_enh,
+            hidden_dims=cfg.hidden_dims_focus
         ).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
@@ -305,8 +305,8 @@ class MultiheadWorker:
             q_target_enh = r.unsqueeze(1) + n_step_gamma * q_max_next_enh * (1.0 - d).unsqueeze(1)
 
             # Apply mask to target (forces target to 0 if base action is 0)
-            mask = (q_max_next_base > 0).float()
-            q_target_enh = mask.unsqueeze(1) * q_target_enh   # Shape: [Batch, 4]
+            # mask = (q_max_next_base > 0).float()
+            # q_target_enh = mask.unsqueeze(1) * q_target_enh   # Shape: [Batch, 4]
 
             # print(f"Target shapes - q_target_base: {q_target_base.shape}, q_target_enh: {q_target_enh.shape}")
 
@@ -317,8 +317,8 @@ class MultiheadWorker:
         q_expected_base = q_base.gather(1, a_base.unsqueeze(1)).squeeze(1)
         q_expected_enh = q_enh.gather(2, a_enh.unsqueeze(2)).squeeze(2)
 
-        mask = (q_expected_base > 0).float()
-        q_expected_enh = mask.unsqueeze(1) * q_expected_enh   # Shape: [Batch, 4]
+        # mask = (q_expected_base > 0).float()
+        # q_expected_enh = mask.unsqueeze(1) * q_expected_enh   # Shape: [Batch, 4]
 
         # ---------- Loss Calculation (L) ----------
         
