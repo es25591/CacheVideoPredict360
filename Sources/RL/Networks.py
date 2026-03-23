@@ -125,7 +125,6 @@ class HierarchicalDQNet(nn.Module):
         self.base_head = nn.Linear(last_dim, action_dim_base)
         
         # --- 3. Conditional Enhancement Heads (Layer-2 Parameters) ---
-        # Each base action has its own set of enhancement parameters
         self.enh_heads = nn.ModuleList([
             nn.Linear(last_dim, action_dim_enh) for _ in range(4)
         ])
