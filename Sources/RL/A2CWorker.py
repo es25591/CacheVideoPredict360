@@ -21,6 +21,8 @@ from Sources.RL.Networks import A2CNetwork
 
 class A2CWorker:
     def __init__(self, cfg, debugger=None):
+        self.device = resolve_torch_device()
+        
         self.cfg = cfg
         self.debugger = debugger
 
@@ -28,19 +30,18 @@ class A2CWorker:
         self.n_step = cfg.n_step
         self.state_dim = cfg.state_dim_base_focus
         self.action_dim = cfg.action_dim_base_focus
+        self.hidden_dims = cfg.hidden_dims
 
         self.epsilon = 0.0 
         self.gamma = cfg.gamma
         self.batch_size = cfg.batch_size
 
-        self.device = resolve_torch_device()
-
         self.buffer = RolloutBuffer(cfg.buffer_capacity)
 
         self.network = A2CNetwork(
-            self.state_dim, 
-            self.action_dim,
-            
+            state_dim=self.state_dim, 
+            action_dim=self.action_dim,
+            hidden_dims=self.hidden_dims
         ).to(self.device)
 
         if cfg.optimizer == "adam":
@@ -58,7 +59,7 @@ class A2CWorker:
         self.loss_fn = nn.MSELoss()
         self.nb_interval = cfg.nb_interval
 
-    def select_action(self, state):
+    def select_action(self, state):       
         state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
 
         value, action_probs = self.network(state)
