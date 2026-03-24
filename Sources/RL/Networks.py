@@ -293,21 +293,43 @@ class DependentFocusQNetwork(nn.Module):
         return q_base, q_enh
 
 class A2CNetwork(nn.Module):
-    def __init__(self, state_dim, action_dim):
-        super(A2CNetwork, self).__init__()
-        self.common = nn.Linear(state_dim, 256)
+    def __init__(self, state_dim, action_dim, hidden_dim=None, hidden_dims=(2048, 1024, 512)):
+        super(A2CNetwork, self).__init__()        
+
+        if hidden_dims is None:
+            hidden_dims = (hidden_dim,)
+        elif isinstance(hidden_dims, int):
+            hidden_dims = (hidden_dims,)
+        else:
+            hidden_dims = tuple(hidden_dims)
+
+        if len(hidden_dims) == 0:
+            raise ValueError("hidden_dims must contain at least one layer size")
+
+        last_dim = hidden_dims[-1]
         
+        # --- 1. State Encoding Shared Layers ---
+        encoder_layers = []
+        in_dim = state_dim
+        for dim in hidden_dims:
+            encoder_layers.append(nn.Linear(in_dim, dim))
+            encoder_layers.append(nn.ReLU())
+            in_dim = dim
+        self.common = nn.Sequential(*encoder_layers)
+
+        self.action_dim = action_dim
+
         # Actor head: Outputs probabilities for each tile/action
         self.actor = nn.Sequential(
-            nn.Linear(256, action_dim),
+            nn.Linear(last_dim, action_dim),
             nn.Softmax(dim=-1)
         )
         
         # Critic head: Outputs a single scalar value for the state
-        self.critic = nn.Linear(256, 1)
+        self.critic = nn.Linear(last_dim, 1)
 
     def forward(self, x, actions=None):
-        x = torch.relu(self.common(x))
+        x = self.common(x)
 
         value = self.critic(x)
         probs = self.actor(x)

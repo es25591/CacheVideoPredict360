@@ -39,7 +39,8 @@ class A2CWorker:
 
         self.network = A2CNetwork(
             self.state_dim, 
-            self.action_dim
+            self.action_dim,
+            
         ).to(self.device)
 
         if cfg.optimizer == "adam":
@@ -64,9 +65,9 @@ class A2CWorker:
 
         dist = torch.distributions.Categorical(probs=action_probs)
         action = dist.sample()
-        log_prob = dist.log_prob(action).squeeze(0)
+        log_prob = dist.log_prob(action)
 
-        return action.item(), value.squeeze(), log_prob
+        return action.item(), value.squeeze(), log_prob.squeeze(0)
 
     def remember(self, log_prob, value, reward, next_state, done):
         self.buffer.push(log_prob, value, reward, next_state, done)
