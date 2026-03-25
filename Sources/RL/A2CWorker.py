@@ -58,6 +58,7 @@ class A2CWorker:
 
         self.loss_fn = nn.MSELoss()
         self.nb_interval = cfg.nb_interval
+        self.last_train_metrics = None
 
     def select_action(self, state):       
         state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
@@ -75,10 +76,11 @@ class A2CWorker:
 
     def train_step(self):
         if len(self.buffer) < self.batch_size:
-            return
+            return None
 
-        self.learn()
+        metrics = self.learn()
         self.buffer.clear()
+        return metrics
 
     def learn(self):
         batch = self.buffer.get_all()
@@ -109,7 +111,22 @@ class A2CWorker:
         nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=0.5)    
         self.optimizer.step()
 
-        self.debugger.log('train_loss', total_loss.item())
+        metrics = {
+            'train_loss': float(total_loss.item()),
+            'actor_loss': float(actor_loss.item()),
+            'critic_loss': float(critic_loss.item()),
+            'advantage_mean': float(advantage.detach().mean().item()),
+            'value_mean': float(value.detach().mean().item()),
+            'target_value_mean': float(target_value.detach().mean().item()),
+        }
+
+        self.last_train_metrics = metrics
+
+        if self.debugger is not None:
+            for key, value in metrics.items():
+                self.debugger.log(key, value)
+
+        return metrics
 
     def update_epsilon(self):
         self.buffer.clear()
