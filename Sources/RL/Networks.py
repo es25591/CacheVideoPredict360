@@ -292,9 +292,9 @@ class DependentFocusQNetwork(nn.Module):
             
         return q_base, q_enh
 
-class A2CNetwork(nn.Module):
+class A2CSharedNetwork(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=None, hidden_dims=(2048, 1024, 512)):
-        super(A2CNetwork, self).__init__()        
+        super(A2CSharedNetwork, self).__init__()        
 
         if hidden_dims is None:
             hidden_dims = (hidden_dim,)
@@ -331,6 +331,64 @@ class A2CNetwork(nn.Module):
     def forward(self, x, actions=None):
         x = self.common(x)
 
+        value = self.critic(x)
+        probs = self.actor(x)
+        
+        dist = torch.distributions.Categorical(probs=probs)
+
+        if actions is not None:
+            log_probs = dist.log_prob(actions)
+            entropy = dist.entropy()
+            return value, log_probs, entropy
+
+        return value, dist.probs
+    
+
+class A2CNetwork(nn.Module):
+    def __init__(
+        self, 
+        state_dim, 
+        action_dim, 
+        hidden_dim=None, 
+        hidden_dims=(2048, 1024, 512)
+    ):
+        super(A2CNetwork, self).__init__()
+
+        if hidden_dims is None:
+            hidden_dims = (hidden_dim,)
+        elif isinstance(hidden_dims, int):
+            hidden_dims = (hidden_dims,)
+        else:
+            hidden_dims = tuple(hidden_dims)
+
+        if len(hidden_dims) == 0:
+            raise ValueError("hidden_dims must contain at least one layer size")
+ 
+        # Actor head: Outputs probabilities for each tile/action
+        self.actor = nn.Sequential(
+            nn.Linear(state_dim, hidden_dims[0]),
+            nn.ReLU(),
+            nn.Linear(hidden_dims[0], hidden_dims[1]),
+            nn.ReLU(),
+            nn.Linear(hidden_dims[1], hidden_dims[2]),
+            nn.ReLU(),
+            nn.Linear(hidden_dims[2], action_dim),
+            nn.Softmax(dim=-1)
+        )
+               
+        # Critic head: Outputs a single scalar value for the state
+        self.critic = nn.Sequential(
+            nn.Linear(state_dim, hidden_dims[0]),
+            nn.ReLU(),
+            nn.Linear(hidden_dims[0], hidden_dims[1]),
+            nn.ReLU(),
+            nn.Linear(hidden_dims[1], hidden_dims[2]),
+            nn.ReLU(),
+            nn.Linear(hidden_dims[2], 1)
+        )
+        
+    def forward(self, x, actions=None):
+        
         value = self.critic(x)
         probs = self.actor(x)
         
