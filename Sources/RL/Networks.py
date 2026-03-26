@@ -342,7 +342,7 @@ class A2CSharedNetwork(nn.Module):
             return value, log_probs, entropy
 
         return value, dist.probs
-    
+
 
 class A2CNetwork(nn.Module):
     def __init__(
@@ -387,17 +387,17 @@ class A2CNetwork(nn.Module):
             nn.Linear(hidden_dims[2], 1)
         )
         
-    def forward(self, x, actions=None):
+    def forward(self, x, action=None):
         
         value = self.critic(x)
         probs = self.actor(x)
         
         dist = torch.distributions.Categorical(probs=probs)
 
-        if actions is not None:
-            log_probs = dist.log_prob(actions)
+        if action is not None:
+            log_prob = dist.log_prob(action)
             entropy = dist.entropy()
-            return value, log_probs, entropy
+            return value, log_prob, entropy
 
         return value, dist.probs
         

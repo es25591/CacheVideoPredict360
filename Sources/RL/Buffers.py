@@ -46,6 +46,9 @@ class NStepReplayBuffer:
     
     def __len__(self):
         return len(self.memory)
+    
+    def clear(self):
+        self.memory.clear()
 
 class RolloutBuffer:
     def __init__(self, capacity: int = 2000):
@@ -56,6 +59,11 @@ class RolloutBuffer:
 
     def get_all(self):
         return self.memory
+
+    def sample(self, batch_size: int = None):
+        if batch_size is None:
+            return self.memory
+        return random.sample(self.memory, batch_size)
 
     def clear(self):
         self.memory.clear()

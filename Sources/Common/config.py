@@ -2,13 +2,15 @@
 from dataclasses import dataclass
 
 class Config:
+    has_warmup: int = True
+
     n_episodes: int = 400
     max_steps: int = 10000
     n_nodes: int = 3
     n_users: int = 200
     step_size: float = 10.0
     arrival_rate: float = 200.0  # users per second
-    zipf_alpha: float = 0.8
+    zipf_alpha: float = 1.0
     n_videos: int = 500
     n_gops: int = 60
     user_session_length: int = 60
@@ -23,7 +25,7 @@ class Config:
     enh_layer_size: float = 1.5e+7  # 15 MB
     total_video_size: float = n_videos * n_gops * (bas_layer_size  + viewport * (enh_layer_size / n_tiles))  # total size of all videos in bytes
 
-    cache_capacity_percent: float = 0.25  # 25% of the total video size
+    cache_capacity_percent: float = 0.1  # 10% of the total video size
     cache_capacity: float = cache_capacity_percent * total_video_size
     cache_size: int = int(cache_capacity_percent * n_videos)
 
@@ -35,15 +37,16 @@ class Config:
 
     learning_rate: float = 1e-3
     learning_rate_decay: float = 0.9995
+    learning_rate_actor: float = 1e-4
+    learning_rate_critic: float = 1e-3
 
     tau: float = 0.01
     gamma: float = 0.9 # 0.6
-    batch_size: int = 32
+    batch_size: int = 64
     buffer_capacity: int = 2000
     nb_interval: int = 200  # interval to update target network
     n_step: int = 1000
     optimizer: str = "adam"  # "adam" or "sgd"
-
 
     h_short: int = 300   # sliding windows for popularity (Section VI-A)
     h_long: int = 1000
@@ -74,7 +77,8 @@ class Config:
     state_dim: int = 10 * cache_size + 2 # 10*C + 2 = (2C + 2Ck) * 2 + 2 (Section VI-A)
     action_dim: int = 2  # 0 = Pass, 1 = Cache
     hidden_dim: int = 128
-
+    hidden_dims: tuple = (3012, 1024, 512)
+    
     action_dim_base_focus: int = cache_size + 1
     action_dim_enh_focus: int = viewport + 1
 
@@ -84,9 +88,8 @@ class Config:
     hidden_dim_base_focus: int = 256
     hidden_dim_enh_focus: int = 128
     hidden_dim_focus: int = 1024
-    hidden_dims_focus: tuple = (512, 1024, 512)
+    hidden_dims_focus: tuple = (3012, 1024, 512)
 
-    has_warmup: int = True
     ### Additional configuration parameters can be added here as needed
 
     init_type: str = "normal"  # "normal" or "orthogonal"
