@@ -49,6 +49,7 @@ class NStepReplayBuffer:
     
     def clear(self):
         self.memory.clear()
+        self.n_step_buffer.clear()
 
 class RolloutBuffer:
     def __init__(self, capacity: int = 2000):
@@ -103,3 +104,4 @@ class NStepRolloutBuffer:
 
     def clear(self):
         self.memory.clear()
+        self.n_step_buffer.clear()

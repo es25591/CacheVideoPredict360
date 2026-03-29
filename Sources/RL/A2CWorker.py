@@ -87,15 +87,16 @@ class A2CWorker:
 
         return action.item(), value.squeeze(), log_prob.squeeze(0)
 
-    def remember(self, log_prob, value, reward, next_state, done):
-        self.buffer.push(log_prob, value, reward, next_state, done)
+    def remember(self, state, action, reward, next_state, done):
+        self.buffer.push(state, action, reward, next_state, done)
 
     def train_step(self):
-        if len(self.buffer) < self.batch_size:
+        self.step += 1
+        if len(self.buffer) < self.batch_size or self.step % self.nb_interval != 0:
             return None
 
         metrics = self.learn()
-        
+
         return metrics
 
     def learn(self):
@@ -114,7 +115,8 @@ class A2CWorker:
         with torch.no_grad():
             next_value, _ = self.network(next_state)
             next_value = next_value.squeeze()
-            target_value = reward + self.gamma * next_value * (1 - done)
+            n_step_gamma = self.gamma ** self.n_step
+            target_value = reward + n_step_gamma * next_value * (1 - done)
 
         value, log_prob, _ = self.network(state, action)
         advantage = target_value - value.squeeze()
@@ -151,3 +153,4 @@ class A2CWorker:
 
     def update_epsilon(self):
         self.buffer.clear()
+        self.step = 0
