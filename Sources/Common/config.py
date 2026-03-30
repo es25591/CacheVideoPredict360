@@ -37,16 +37,22 @@ class Config:
 
     learning_rate: float = 1e-3
     learning_rate_decay: float = 0.9995
-    learning_rate_actor: float = 1e-4
+    learning_rate_actor: float = 1e-3
     learning_rate_critic: float = 1e-3
 
     tau: float = 0.01
-    gamma: float = 0.9 # 0.6
-    batch_size: int = 64
+    gamma: float = 0.6 # 0.6
+    batch_size: int = 256
     buffer_capacity: int = 2000
     nb_interval: int = 200  # interval to update target network
     n_step: int = 1000
     optimizer: str = "adam"  # "adam" or "sgd"
+
+    # A2C-specific hyperparameters
+    gae_lambda: float = 0.95  # GAE lambda for variance reduction
+    entropy_beta: float = 0.01  # Entropy regularization coefficient
+    advantage_clip: float = 5.0  # Clip advantages to [-clip, clip]
+    gradient_clip_norm: float = 0.5  # Max gradient norm clipping
 
     h_short: int = 300   # sliding windows for popularity (Section VI-A)
     h_long: int = 1000

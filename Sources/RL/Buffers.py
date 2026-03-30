@@ -1,4 +1,5 @@
 import random
+import numpy as np
 
 from collections import deque
 
@@ -41,6 +42,44 @@ class NStepReplayBuffer:
 
         return reward, self.n_step_buffer[-1][3], self.n_step_buffer[-1][4]
     
+    def compute_gae(self, rewards, values, next_value, dones, lam=0.95):
+        """
+        Compute Generalized Advantage Estimation (GAE).
+        
+        Args:
+            rewards: List of rewards from batch (shape: [batch_size])
+            values: List of state values from critic (shape: [batch_size])
+            next_value: Value of the next state (scalar)
+            dones: List of done flags (shape: [batch_size])
+            lam: GAE lambda parameter (0.95 is standard)
+            
+        Returns:
+            advantages: GAE advantages (shape: [batch_size])
+            returns: TD targets for critic (shape: [batch_size])
+        """
+        advantages = np.zeros(len(rewards), dtype=np.float32)
+        gae = 0
+        
+        # Process in reverse order
+        next_value_t = next_value
+        for t in reversed(range(len(rewards))):
+            if t == len(rewards) - 1:
+                next_value_t = next_value
+            else:
+                next_value_t = values[t + 1]
+            
+            # TD residual (TD error): δ = r + γV(s') - V(s)
+            delta = rewards[t] + self.gamma * next_value_t * (1 - dones[t]) - values[t]
+            
+            # GAE: A(t) = δ(t) + (λγ)δ(t+1) + (λγ)²δ(t+2) + ...
+            gae = delta + self.gamma * lam * (1 - dones[t]) * gae
+            advantages[t] = gae
+        
+        # Returns = Advantages + Values (for critic target)
+        returns = advantages + values
+        
+        return advantages, returns
+    
     def sample(self, batch_size):
         return random.sample(self.memory, batch_size)
     
@@ -55,8 +94,8 @@ class RolloutBuffer:
     def __init__(self, capacity: int = 2000):
         self.memory = deque(maxlen=capacity)
 
-    def push(self, log_prob, value, reward, next_state, done):
-        self.memory.append((log_prob, value, reward, next_state, done))
+    def push(self, state, action, reward, next_state, done):
+        self.memory.append((state, action, reward, next_state, done))
 
     def get_all(self):
         return self.memory
@@ -65,6 +104,22 @@ class RolloutBuffer:
         if batch_size is None:
             return self.memory
         return random.sample(self.memory, batch_size)
+
+    def compute_gae(self, rewards, values, next_value, dones, gamma, lam=0.95):
+        """
+        Compute Generalized Advantage Estimation (GAE) over an ordered rollout.
+        """
+        advantages = np.zeros(len(rewards), dtype=np.float32)
+        gae = 0.0
+
+        for t in reversed(range(len(rewards))):
+            next_value_t = next_value if t == len(rewards) - 1 else values[t + 1]
+            delta = rewards[t] + gamma * next_value_t * (1 - dones[t]) - values[t]
+            gae = delta + gamma * lam * (1 - dones[t]) * gae
+            advantages[t] = gae
+
+        returns = advantages + values
+        return advantages, returns
 
     def clear(self):
         self.memory.clear()
@@ -91,11 +146,11 @@ class NStepRolloutBuffer:
     def _get_n_step_info(self):
         reward = 0
         for i, transition in enumerate(self.n_step_buffer):
-            reward += (self.gamma ** i) * transition[4]
+            reward += (self.gamma ** i) * transition[2]
 
         # reward = reward / self.n_step # Normalize reward by n_step to prevent large values
 
-        return reward, self.n_step_buffer[-1][5], self.n_step_buffer[-1][6] 
+        return reward, self.n_step_buffer[-1][3], self.n_step_buffer[-1][4]
     
     def sample(self, batch_size: int = None):
         if batch_size is None:

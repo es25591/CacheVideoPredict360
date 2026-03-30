@@ -15,7 +15,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 from Sources.Core.device import resolve_torch_device
-from Sources.RL.Buffers import NStepReplayBuffer, RolloutBuffer
+from Sources.RL.Buffers import RolloutBuffer
 from Sources.RL.Networks import A2CNetwork
 
 
@@ -35,9 +35,15 @@ class A2CWorker:
         self.epsilon = 0.0 
         self.gamma = cfg.gamma
         self.batch_size = cfg.batch_size
+        
+        # A2C-specific hyperparameters
+        self.gae_lambda = cfg.gae_lambda
+        self.entropy_beta = cfg.entropy_beta
+        self.advantage_clip = cfg.advantage_clip
+        self.gradient_clip_norm = cfg.gradient_clip_norm
 
-        # self.buffer = RolloutBuffer(cfg.buffer_capacity)
-        self.buffer = NStepReplayBuffer(cfg.buffer_capacity, self.n_step, self.gamma)
+        # A2C is on-policy: keep an ordered rollout and update from contiguous transitions.
+        self.buffer = RolloutBuffer(cfg.buffer_capacity)
 
         self.network = A2CNetwork(
             state_dim=self.state_dim, 
@@ -76,6 +82,9 @@ class A2CWorker:
         self.loss_fn = nn.MSELoss()
         self.nb_interval = cfg.nb_interval
 
+    def remember(self, state, action, reward, next_state, done):
+        self.buffer.push(state, action, reward, next_state, done)
+
     def select_action(self, state):       
         state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
 
@@ -87,12 +96,9 @@ class A2CWorker:
 
         return action.item(), value.squeeze(), log_prob.squeeze(0)
 
-    def remember(self, state, action, reward, next_state, done):
-        self.buffer.push(state, action, reward, next_state, done)
-
     def train_step(self):
         self.step += 1
-        if len(self.buffer) < self.batch_size or self.step % self.nb_interval != 0:
+        if len(self.buffer) < self.batch_size:
             return None
 
         metrics = self.learn()
@@ -100,8 +106,13 @@ class A2CWorker:
         return metrics
 
     def learn(self):
-        # batch = self.buffer.get_all()
-        batch = self.buffer.sample(self.batch_size)
+        rollout = list(self.buffer.get_all())
+        if not rollout:
+            return None
+
+        # Keep the most recent contiguous transitions to preserve temporal structure.
+        rollout_horizon = min(len(rollout), self.n_step)
+        batch = rollout[-rollout_horizon:]
 
         state, action, reward, next_state, done = zip(*batch)
 
@@ -111,42 +122,73 @@ class A2CWorker:
         next_state = torch.FloatTensor(np.array(next_state)).to(self.device)
         done = torch.FloatTensor(done).to(self.device)
 
-        # Bootstrap the TD target with the critic at next state.
+        # Get values for GAE computation
         with torch.no_grad():
+            value, _ = self.network(state)
+            value = value.squeeze()
             next_value, _ = self.network(next_state)
             next_value = next_value.squeeze()
-            n_step_gamma = self.gamma ** self.n_step
-            target_value = reward + n_step_gamma * next_value * (1 - done)
 
-        value, log_prob, _ = self.network(state, action)
-        advantage = target_value - value.squeeze()
+        # Convert to numpy for GAE computation on ordered rollout transitions.
+        value_np = value.cpu().numpy()
+        next_value_np = next_value.cpu().numpy()
+        reward_np = reward.cpu().numpy()
+        done_np = done.cpu().numpy()
 
-        # Compute losses for each head.
-        actor_loss = - (log_prob * advantage.detach()).mean()
+        # Compute GAE (Generalized Advantage Estimation)
+        advantages_np, returns_np = self.buffer.compute_gae(
+            reward_np, value_np, next_value_np[-1], done_np, gamma=self.gamma, lam=self.gae_lambda
+        )
 
-        # --- Actor update ---
+        advantages = torch.FloatTensor(advantages_np).to(self.device)
+        returns = torch.FloatTensor(returns_np).to(self.device)
+
+        # # Normalize advantages to reduce variance and improve learning stability
+        # # (helps with PSNR reward scale 0-40)
+        # advantage_mean = advantages.mean()
+        # advantage_std = advantages.std() + 1e-8  # Add small epsilon to avoid division by zero
+        # advantages = (advantages - advantage_mean) / advantage_std
+
+        # # Optional: Clip advantages to prevent extreme policy updates
+        # advantages = torch.clamp(advantages, -self.advantage_clip, self.advantage_clip)
+
+        # --- Actor update with entropy regularization ---
+        value, log_prob, entropy = self.network(state, action)
+
+        # Actor loss: policy gradient with entropy bonus for exploration
+        actor_loss = - (log_prob * advantages.detach()).mean()
+        entropy_loss = -self.entropy_beta * entropy.mean()  # Negative because we want to maximize entropy
+        actor_total_loss = actor_loss + entropy_loss
+
         self.actor_optimizer.zero_grad()
-        actor_loss.backward()
-        nn.utils.clip_grad_norm_(self.network.actor.parameters(), max_norm=0.5)
+        actor_total_loss.backward()
+        nn.utils.clip_grad_norm_(self.network.actor.parameters(), max_norm=self.gradient_clip_norm)
         self.actor_optimizer.step()
 
-        # --- Critic forward pass ---
+        # --- Critic update (MSE on TD target) ---
         value, _ = self.network(state)
         value = value.squeeze()
-        critic_loss = self.loss_fn(value, target_value)
-        
-        # --- Critic update ---
+        critic_loss = self.loss_fn(value, returns)
+
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
-        nn.utils.clip_grad_norm_(self.network.critic.parameters(), max_norm=0.5)
+        nn.utils.clip_grad_norm_(self.network.critic.parameters(), max_norm=self.gradient_clip_norm)
         self.critic_optimizer.step()
 
-        total_loss = actor_loss + critic_loss
+        total_loss = actor_total_loss + critic_loss
+
+        # On-policy update: discard rollout after learning.
+        self.buffer.clear()
 
         metrics = {
             'train_loss': float(total_loss.item()),
             'actor_loss': float(actor_loss.item()),
-            'critic_loss': float(critic_loss.item())
+            'entropy_loss': float(entropy_loss.item()),
+            'critic_loss': float(critic_loss.item()),
+            'policy_entropy': float(entropy.mean().item()),
+            'rollout_size': int(rollout_horizon),
+            'advantage_min': float(advantages.min().item()),
+            'advantage_max': float(advantages.max().item())
         }
 
         return metrics
