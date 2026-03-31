@@ -98,10 +98,13 @@ class A2CWorker:
 
     def train_step(self):
         self.step += 1
-        if len(self.buffer) < self.batch_size:
+        if len(self.buffer) < self.batch_size and self.step % self.nb_interval != 0:
             return None
 
         metrics = self.learn()
+
+        # On-policy update: discard rollout after learning.
+        # self.buffer.clear()
 
         return metrics
 
@@ -143,12 +146,17 @@ class A2CWorker:
         advantages = torch.FloatTensor(advantages_np).to(self.device)
         returns = torch.FloatTensor(returns_np).to(self.device)
 
-        # # Normalize advantages to reduce variance and improve learning stability
-        # # (helps with PSNR reward scale 0-40)
-        # advantage_mean = advantages.mean()
-        # advantage_std = advantages.std() + 1e-8  # Add small epsilon to avoid division by zero
-        # advantages = (advantages - advantage_mean) / advantage_std
+        # Normalize advantages to reduce variance and improve learning stability
+        # (helps with PSNR reward scale 0-40)
+        advantage_mean = advantages.mean()
+        advantage_std = advantages.std() + 1e-8  # Add small epsilon to avoid division by zero
+        advantages_1 = (advantages - advantage_mean) / advantage_std
 
+        print(f"Advantages: {advantages.item():.4f}")
+        print(f"Advantages before normalization: mean={advantages.mean().item():.4f}, std={advantages.std().item():.4f}")
+        print(f"Advantages normalized: mean={advantages_1.mean().item():.4f}, std={advantages_1.std().item():.4f}")
+        print(f"Advantages before clipping: min={advantages.min().item():.4f}, max={advantages.max().item():.4f}")
+        
         # # Optional: Clip advantages to prevent extreme policy updates
         # advantages = torch.clamp(advantages, -self.advantage_clip, self.advantage_clip)
 
@@ -176,9 +184,6 @@ class A2CWorker:
         self.critic_optimizer.step()
 
         total_loss = actor_total_loss + critic_loss
-
-        # On-policy update: discard rollout after learning.
-        self.buffer.clear()
 
         metrics = {
             'train_loss': float(total_loss.item()),
