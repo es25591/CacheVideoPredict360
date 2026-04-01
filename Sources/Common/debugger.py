@@ -157,7 +157,7 @@ class AgentDebugger:
             "correlation": corr,
         }
 
-    def save_results(self, filepath="log_results", format='pickle'):
+    def save_results(self, filepath="log_results", format=None):
         """
         Store the collected simulation results to a file.
 
@@ -165,21 +165,26 @@ class AgentDebugger:
             filepath: Path where to save the results
             format: 'pickle', 'json', or 'csv'
         """
+        if format is None:
+            format = 'json'
+
         serializable_data = {
             key: [self._to_python(v) for v in values]
             for key, values in self.data.items()
         }
 
-        with open(f"{filepath}.json", "w") as f:
-            json.dump(serializable_data, f, indent=2)
+        if format == 'json':
+            with open(f"{filepath}.json", "w") as f:
+                json.dump(serializable_data, f, indent=2)
 
-        keys = list(serializable_data.keys())
-        rows = zip(*serializable_data.values())
+        elif format == 'csv':    
+            keys = list(serializable_data.keys())
+            rows = zip(*serializable_data.values())
 
-        with open(f"{filepath}.csv", "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(keys)
-            writer.writerows(rows)
+            with open(f"{filepath}.csv", "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(keys)
+                writer.writerows(rows)
 
         # print(f"Results saved to {filepath}")
 

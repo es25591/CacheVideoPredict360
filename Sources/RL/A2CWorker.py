@@ -17,6 +17,7 @@ import torch.nn.functional as F
 from Sources.Core.device import resolve_torch_device
 from Sources.RL.Buffers import RolloutBuffer
 from Sources.RL.Networks import A2CNetwork
+from Sources.RL.ActionRanking import WolpertingerKnnSelector
 
 
 class A2CWorker:
@@ -85,7 +86,7 @@ class A2CWorker:
     def remember(self, state, action, reward, next_state, done):
         self.buffer.push(state, action, reward, next_state, done)
 
-    def select_action(self, state):       
+    def select_action(self, state, action_space="base"):
         state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
 
         value, action_probs = self.network(state)
@@ -98,13 +99,13 @@ class A2CWorker:
 
     def train_step(self):
         self.step += 1
-        if len(self.buffer) < self.batch_size and self.step % self.nb_interval != 0:
+        if len(self.buffer) < self.batch_size or self.step % self.nb_interval != 0:
             return None
 
         metrics = self.learn()
 
         # On-policy update: discard rollout after learning.
-        # self.buffer.clear()
+        self.buffer.clear()
 
         return metrics
 
@@ -152,10 +153,10 @@ class A2CWorker:
         advantage_std = advantages.std() + 1e-8  # Add small epsilon to avoid division by zero
         advantages_1 = (advantages - advantage_mean) / advantage_std
 
-        print(f"Advantages: {advantages.item():.4f}")
-        print(f"Advantages before normalization: mean={advantages.mean().item():.4f}, std={advantages.std().item():.4f}")
-        print(f"Advantages normalized: mean={advantages_1.mean().item():.4f}, std={advantages_1.std().item():.4f}")
-        print(f"Advantages before clipping: min={advantages.min().item():.4f}, max={advantages.max().item():.4f}")
+        # print(f"Advantages: {advantages:.4f}")
+        # print(f"Advantages before normalization: mean={advantages.mean().item():.4f}, std={advantages.std().item():.4f}")
+        # print(f"Advantages normalized: mean={advantages_1.mean().item():.4f}, std={advantages_1.std().item():.4f}")
+        # print(f"Advantages before clipping: min={advantages.min().item():.4f}, max={advantages.max().item():.4f}")
         
         # # Optional: Clip advantages to prevent extreme policy updates
         # advantages = torch.clamp(advantages, -self.advantage_clip, self.advantage_clip)
@@ -201,3 +202,62 @@ class A2CWorker:
     def update_epsilon(self):
         self.buffer.clear()
         self.step = 0
+
+
+class KnnA2CWorker(A2CWorker):
+    """A2C worker with Wolpertinger-like KNN candidate pruning for discrete actions."""
+
+    def __init__(self, cfg, debugger=None):
+        super().__init__(cfg, debugger=debugger)
+
+        self.wolpertinger_enabled = bool(getattr(cfg, "wolpertinger_enabled", True))
+        base_k = int(getattr(cfg, "wolpertinger_k_base", 8))
+        enh_k = int(getattr(cfg, "wolpertinger_k_enh", 4))
+        ema_alpha = float(getattr(cfg, "wolpertinger_ema_alpha", 0.1))
+
+        self.base_selector = WolpertingerKnnSelector(
+            action_dim=self.action_dim,
+            k=base_k,
+            ema_alpha=ema_alpha,
+        )
+        self.enh_selector = WolpertingerKnnSelector(
+            action_dim=int(getattr(cfg, "action_dim_enh_focus", self.action_dim)),
+            k=enh_k,
+            ema_alpha=ema_alpha,
+        )
+
+    def _selector_for_space(self, action_space: str) -> WolpertingerKnnSelector:
+        if action_space == "enh":
+            return self.enh_selector
+        return self.base_selector
+
+    def select_action(self, state, action_space="base"):
+        state_t = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+
+        value, action_probs = self.network(state_t)
+        probs_np = action_probs.squeeze(0).detach().cpu().numpy()
+
+        # If action-space dimensions mismatch network output, fallback to vanilla sampling.
+        selector = self._selector_for_space(action_space)
+        if (not self.wolpertinger_enabled) or selector.action_dim != probs_np.shape[0]:
+            dist = torch.distributions.Categorical(probs=action_probs)
+            action = dist.sample()
+            log_prob = dist.log_prob(action)
+            return action.item(), value.squeeze(), log_prob.squeeze(0)
+
+        action_id, candidates = selector.select(probs_np)
+        probs_safe = np.nan_to_num(probs_np, nan=0.0, posinf=0.0, neginf=0.0)
+        candidate_mass = float(probs_safe[candidates].sum())
+
+        if candidate_mass <= 0.0:
+            # Use full distribution if candidate distribution is degenerate.
+            dist = torch.distributions.Categorical(probs=action_probs)
+            action = dist.sample()
+            log_prob = dist.log_prob(action)
+            return action.item(), value.squeeze(), log_prob.squeeze(0)
+
+        action_tensor = torch.tensor(action_id, device=self.device)
+        log_prob_value = np.log(max(probs_safe[action_id] / candidate_mass, 1e-12))
+        log_prob = torch.tensor(log_prob_value, dtype=torch.float32, device=self.device)
+
+        return int(action_id), value.squeeze(), log_prob
