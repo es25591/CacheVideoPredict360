@@ -42,6 +42,8 @@ class A2CWorker:
         self.entropy_beta = cfg.entropy_beta
         self.advantage_clip = cfg.advantage_clip
         self.gradient_clip_norm = cfg.gradient_clip_norm
+        self.action_temperature = float(getattr(cfg, "action_temperature", 1.0))
+        self.random_action_prob = float(getattr(cfg, "random_action_prob", 0.0))
 
         # A2C is on-policy: keep an ordered rollout and update from contiguous transitions.
         self.buffer = RolloutBuffer(cfg.buffer_capacity)
@@ -91,6 +93,22 @@ class A2CWorker:
 
         value, action_probs = self.network(state)
 
+        action_probs = action_probs.squeeze(0)
+        if action_space == "enh":
+            action_probs = action_probs[: self.cfg.action_dim_enh_focus]
+
+        action_probs = torch.nan_to_num(action_probs, nan=0.0, posinf=0.0, neginf=0.0)
+        action_probs = action_probs / (action_probs.sum() + 1e-12)
+
+        if self.action_temperature != 1.0:
+            tempered = torch.pow(action_probs + 1e-12, 1.0 / self.action_temperature)
+            action_probs = tempered / (tempered.sum() + 1e-12)
+
+        if self.random_action_prob > 0.0 and torch.rand(1).item() < self.random_action_prob:
+            action = torch.randint(0, action_probs.shape[0], (1,), device=self.device)
+            log_prob = torch.log(torch.clamp(torch.ones(1, device=self.device) / action_probs.shape[0], min=1e-12))
+            return action.item(), value.squeeze(), log_prob.squeeze(0)
+
         dist = torch.distributions.Categorical(probs=action_probs)
         action = dist.sample()
         log_prob = dist.log_prob(action)
@@ -99,7 +117,7 @@ class A2CWorker:
 
     def train_step(self):
         self.step += 1
-        if len(self.buffer) < self.batch_size or self.step % self.nb_interval != 0:
+        if len(self.buffer) < self.batch_size:
             return None
 
         metrics = self.learn()
@@ -147,19 +165,11 @@ class A2CWorker:
         advantages = torch.FloatTensor(advantages_np).to(self.device)
         returns = torch.FloatTensor(returns_np).to(self.device)
 
-        # Normalize advantages to reduce variance and improve learning stability
-        # (helps with PSNR reward scale 0-40)
+        # Normalize and clip advantages to stabilize actor updates.
         advantage_mean = advantages.mean()
-        advantage_std = advantages.std() + 1e-8  # Add small epsilon to avoid division by zero
-        advantages_1 = (advantages - advantage_mean) / advantage_std
-
-        # print(f"Advantages: {advantages:.4f}")
-        # print(f"Advantages before normalization: mean={advantages.mean().item():.4f}, std={advantages.std().item():.4f}")
-        # print(f"Advantages normalized: mean={advantages_1.mean().item():.4f}, std={advantages_1.std().item():.4f}")
-        # print(f"Advantages before clipping: min={advantages.min().item():.4f}, max={advantages.max().item():.4f}")
-        
-        # # Optional: Clip advantages to prevent extreme policy updates
-        # advantages = torch.clamp(advantages, -self.advantage_clip, self.advantage_clip)
+        advantage_std = advantages.std().clamp_min(1e-8)
+        advantages = (advantages - advantage_mean) / advantage_std
+        advantages = torch.clamp(advantages, -self.advantage_clip, self.advantage_clip)
 
         # --- Actor update with entropy regularization ---
         value, log_prob, entropy = self.network(state, action)
@@ -213,51 +223,56 @@ class KnnA2CWorker(A2CWorker):
         self.wolpertinger_enabled = bool(getattr(cfg, "wolpertinger_enabled", True))
         base_k = int(getattr(cfg, "wolpertinger_k_base", 8))
         enh_k = int(getattr(cfg, "wolpertinger_k_enh", 4))
-        ema_alpha = float(getattr(cfg, "wolpertinger_ema_alpha", 0.1))
+        ema_alpha = float(getattr(cfg, "wolpertinger_ema_alpha", 0.05))
+        temperature = float(getattr(cfg, "wolpertinger_temperature", 1.2))
+        frequency_penalty = float(getattr(cfg, "wolpertinger_frequency_penalty", 0.05))
+        random_action_prob = float(getattr(cfg, "wolpertinger_random_action_prob", 0.05))
 
         self.base_selector = WolpertingerKnnSelector(
             action_dim=self.action_dim,
+            embedding_dim=self.hidden_dims[-1],
             k=base_k,
             ema_alpha=ema_alpha,
+            temperature=temperature,
+            frequency_penalty=frequency_penalty,
+            random_action_prob=random_action_prob,
         )
-        self.enh_selector = WolpertingerKnnSelector(
-            action_dim=int(getattr(cfg, "action_dim_enh_focus", self.action_dim)),
-            k=enh_k,
-            ema_alpha=ema_alpha,
-        )
-
-    def _selector_for_space(self, action_space: str) -> WolpertingerKnnSelector:
-        if action_space == "enh":
-            return self.enh_selector
-        return self.base_selector
 
     def select_action(self, state, action_space="base"):
         state_t = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+        value, action_probs, state_embedding = self.network(state_t, return_embedding=True)
 
-        value, action_probs = self.network(state_t)
-        probs_np = action_probs.squeeze(0).detach().cpu().numpy()
+        action_probs = action_probs.squeeze(0)
+        action_probs = torch.nan_to_num(action_probs, nan=0.0, posinf=0.0, neginf=0.0)
+        action_probs = action_probs / (action_probs.sum() + 1e-12)
 
-        # If action-space dimensions mismatch network output, fallback to vanilla sampling.
-        selector = self._selector_for_space(action_space)
-        if (not self.wolpertinger_enabled) or selector.action_dim != probs_np.shape[0]:
+        state_embedding_np = state_embedding.squeeze(0).detach().cpu().numpy()
+        probs_np = action_probs.detach().cpu().numpy()
+
+        selector = self.base_selector
+
+        if not self.wolpertinger_enabled or selector.action_dim != probs_np.shape[0]:
             dist = torch.distributions.Categorical(probs=action_probs)
             action = dist.sample()
             log_prob = dist.log_prob(action)
             return action.item(), value.squeeze(), log_prob.squeeze(0)
 
-        action_id, candidates = selector.select(probs_np)
-        probs_safe = np.nan_to_num(probs_np, nan=0.0, posinf=0.0, neginf=0.0)
-        candidate_mass = float(probs_safe[candidates].sum())
+        action_id, candidates, candidate_probs = selector.select(state_embedding_np, probs_np)
 
-        if candidate_mass <= 0.0:
-            # Use full distribution if candidate distribution is degenerate.
+        if candidate_probs.size == 0 or float(candidate_probs.sum()) <= 0.0:
             dist = torch.distributions.Categorical(probs=action_probs)
             action = dist.sample()
             log_prob = dist.log_prob(action)
             return action.item(), value.squeeze(), log_prob.squeeze(0)
 
-        action_tensor = torch.tensor(action_id, device=self.device)
-        log_prob_value = np.log(max(probs_safe[action_id] / candidate_mass, 1e-12))
-        log_prob = torch.tensor(log_prob_value, dtype=torch.float32, device=self.device)
+        candidate_probs = np.asarray(candidate_probs, dtype=np.float32)
+        candidate_probs = candidate_probs / (candidate_probs.sum() + 1e-12)
+        chosen_idx = int(
+            np.where(candidates == action_id)[0][0]) if action_id in candidates else int(np.argmax(candidate_probs)
+        )
+        log_prob = torch.tensor(
+            np.log(max(candidate_probs[chosen_idx], 1e-12)), dtype=torch.float32, device=self.device
+        )
 
+        selector.update(action_id, state_embedding_np)
         return int(action_id), value.squeeze(), log_prob

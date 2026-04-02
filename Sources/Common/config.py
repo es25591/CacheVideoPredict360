@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 
 class Config:
-    has_warmup: int = False
+    has_warmup: int = True
 
     n_episodes: int = 400
     max_steps: int = 10000
@@ -37,7 +37,7 @@ class Config:
 
     learning_rate: float = 1e-3
     learning_rate_decay: float = 0.9995
-    learning_rate_actor: float = 1e-3
+    learning_rate_actor: float = 7e-3
     learning_rate_critic: float = 1e-3
 
     tau: float = 0.01
@@ -53,12 +53,17 @@ class Config:
     entropy_beta: float = 0.01  # Entropy regularization coefficient
     advantage_clip: float = 5.0  # Clip advantages to [-clip, clip]
     gradient_clip_norm: float = 0.5  # Max gradient norm clipping
+    action_temperature: float = 1.2
+    random_action_prob: float = 0.05
 
     # Wolpertinger (KNN candidate pruning) parameters
     wolpertinger_enabled: bool = False
     wolpertinger_k_base: int = 8
     wolpertinger_k_enh: int = 4
     wolpertinger_ema_alpha: float = 0.1
+    wolpertinger_temperature: float = 1.2
+    wolpertinger_frequency_penalty: float = 0.05
+    wolpertinger_random_action_prob: float = 0.05
 
     h_short: int = 300   # sliding windows for popularity (Section VI-A)
     h_long: int = 1000

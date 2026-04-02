@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[6]:
 
 
 import csv
@@ -41,7 +41,7 @@ from RL.Networks import QNetwork, MultiHeadQNetwork
 from RL.Buffers import ReplayBuffer, NStepReplayBuffer
 from RL.Adapters import FeatureAdapter, NetworkAdapter
 from RL.FocusWorkers import BaseWorker, EnhWorker, FocusWorker
-from RL.A2CWorker import A2CWorker, KnnA2CWorker
+from RL.A2CWorker import A2CWorker
 
 import Common.config as config
 import Common.datatypes as datatypes
@@ -56,7 +56,7 @@ importlib.reload(debugger)
 importlib.reload(utils)
 
 
-# In[2]:
+# In[ ]:
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -73,14 +73,14 @@ cfg.filename = \
     f"focus_eps{cfg.epsilon_start}_" \
     f"lrdecay{cfg.learning_rate_decay}_" \
     f"gamma{cfg.gamma}.csv"
-cfg.state_dim_base_focus = cfg.cache_size * 10 + 4
-cfg.state_dim_enh_focus = cfg.cache_size * 10 + 4
+cfg.state_dim_base_focus = cfg.cache_size * 10 + 2
+cfg.state_dim_enh_focus = cfg.cache_size * 10 + 2
 cfg.action_dim_base_focus = cfg.cache_size * 5 + 1
 
 debugger = debugger.debug
 
 
-# In[3]:
+# In[ ]:
 
 
 class NetworkAdapter:
@@ -134,7 +134,7 @@ class NetworkAdapter:
         # arr_idx[idx_vp] = 1
 
         return np.concatenate(
-            [x_s, x_l, y_s, y_l, [step_one_hot, not step_one_hot]], 
+            [x_s, x_l, y_s, y_l], 
             axis=0
         )
 
@@ -149,7 +149,7 @@ class NetworkAdapter:
         return self.env.users_env.all_users_done()
 
 
-# In[4]:
+# In[9]:
 
 
 def _append_csv_row(csv_path: str, fieldnames: list[str], row: dict) -> None:
@@ -257,7 +257,7 @@ def select_action(agent, req_state, env, net_adapter=None):
 
     if missing[0] == 1:
         state_base = net_adapter.build_observation(0, req_state["video"])
-        action_base, value_base, prob_base = agent.select_action(state_base, action_space="base")
+        action_base, value_base, prob_base = agent.select_action(state_base)
 
         transition[0] = {
             'state': state_base,
@@ -286,7 +286,7 @@ def select_action(agent, req_state, env, net_adapter=None):
                 req_state["video"],
                 req_state["viewport"][idx]
             )
-            action_enh, value_enh, prob_enh = agent.select_action(state_enh, action_space="enh")
+            action_enh, value_enh, prob_enh = agent.select_action(state_enh)
 
             transition[idx + 1] = {
                 'state': state_enh,
@@ -360,8 +360,12 @@ def run_episode(episode, env, agent, net_adapter, cfg, metrics_dir, global_step_
         # reward_1 = reward_1/10.0
 
         # reward = weight * reward_0 + (1 - weight) * reward_1
-        reward = reward_0 + reward_1
+        reward = ((info["psnr"] - 30.0)/10.0)
 
+        if reward < 0:
+            print(f"Negative reward at step {step}: {reward:.2f} | PSNR: {info['psnr']:.2f}")
+            print(f"Step {step} | U: {nxt_req['u']} | V: {nxt_req['video']} | GOP: {nxt_req['gop']} | RL0: {reward_0:.2f} | RL1: {reward_1:.2f} | BH: {info['base_layer_hits']} | EH: {info['enh_layer_hits']} | BM: {info['base_layer_misses']} | EM: {info['enh_layer_misses']}")
+            
         queued_update = False
 
         if missing[0] == 1 or transition[0] is not None:
@@ -422,10 +426,7 @@ def run_episode(episode, env, agent, net_adapter, cfg, metrics_dir, global_step_
 def train(cfg):
     env = builders.build_environment(cfg)
 
-    if getattr(cfg, "wolpertinger_enabled", False):
-        agent = KnnA2CWorker(cfg, debugger=debugger)
-    else:
-        agent = A2CWorker(cfg, debugger=debugger)
+    agent = A2CWorker(cfg, debugger=debugger)
 
     feature_adapter = FeatureAdapter(cfg, env)
     net_adapter = NetworkAdapter(cfg, env, feature_adapter)
