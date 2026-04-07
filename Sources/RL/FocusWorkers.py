@@ -397,6 +397,7 @@ class BaseWorker:
         self.n_step = cfg.n_step
         self.state_dim = cfg.state_dim_base_focus
         self.action_dim = cfg.action_dim_base_focus
+        self.hidden_dims = cfg.hidden_dim_base_focus
 
         self.gamma = cfg.gamma
         self.epsilon = cfg.epsilon_start
@@ -408,8 +409,16 @@ class BaseWorker:
 
         self.buffer = NStepReplayBuffer(cfg.buffer_capacity, self.n_step, self.gamma)
 
-        self.policy_net = QNetwork(self.state_dim, self.action_dim, hidden_dim=cfg.hidden_dim_base_focus).to(self.device)
-        self.target_net = QNetwork(self.state_dim, self.action_dim, hidden_dim=cfg.hidden_dim_base_focus).to(self.device)
+        self.policy_net = QNetwork(
+            self.state_dim, 
+            self.action_dim, 
+            hidden_dim=cfg.hidden_dim_base_focus
+        ).to(self.device)
+        self.target_net = QNetwork(
+            self.state_dim, 
+            self.action_dim, 
+            hidden_dim=cfg.hidden_dim_base_focus
+        ).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
         if cfg.optimizer == "adam":
@@ -465,8 +474,9 @@ class BaseWorker:
 
         self.optimizer.zero_grad()
         loss.backward()
-
         self.optimizer.step()
+        self.scheduler.step()
+
         self.update_target()
 
         self.debugger.log('train_loss_base', loss.item())
@@ -481,6 +491,18 @@ class BaseWorker:
 
     def update_epsilon(self):
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+
+        self.step = 0
+
+    def __str__(self):
+        return (
+            f"DQNWorker(step={self.step}, epsilon={self.epsilon:.4f}, "
+            f"buffer_size={len(self.buffer)}, learning_rate={self.optimizer.param_groups[0]['lr']:.6f}, gamma={self.gamma}, tau={self.tau}\n"
+            f"policy_net_params={sum(p.numel() for p in self.policy_net.parameters())}, "
+            f"target_net_params={sum(p.numel() for p in self.target_net.parameters())}), "
+            f"optimizer={self.optimizer.__class__.__name__}\n"
+            f"hiddens={self.hidden_dims}, Action Dim={self.action_dim}, State Dim={self.state_dim}"
+        )
 
 
 class EnhWorker:

@@ -102,7 +102,7 @@ class A2CWorker:
     def train_step(self):
         self.step += 1
         
-        if len(self.buffer) <= self.batch_size:# or self.step % self.nb_interval != 0:
+        if len(self.buffer) < self.batch_size:# or self.step % self.nb_interval != 0:
             return None
 
         metrics = self.learn()
@@ -165,7 +165,7 @@ class A2CWorker:
         actor_total_loss = actor_loss + entropy_loss
 
         self.actor_optimizer.zero_grad()
-        actor_total_loss.backward()
+        actor_loss.backward()
         nn.utils.clip_grad_norm_(self.network.actor.parameters(), max_norm=self.gradient_clip_norm)
         self.actor_optimizer.step()
 
@@ -179,7 +179,7 @@ class A2CWorker:
         nn.utils.clip_grad_norm_(self.network.critic.parameters(), max_norm=self.gradient_clip_norm)
         self.critic_optimizer.step()
 
-        total_loss = actor_total_loss + critic_loss
+        total_loss = actor_loss + critic_loss
 
         metrics = {
             'train_loss': float(total_loss.item()),
@@ -202,7 +202,8 @@ class A2CWorker:
         return (
             f"A2CWorker(ActorLR={self.actor_optimizer.param_groups[0]['lr']:.6f}, "
             f"CriticLR={self.critic_optimizer.param_groups[0]['lr']:.6f})\n"
-            f"BufferSize={len(self.buffer)}, GAE_lambda={self.gae_lambda}, Entropy_beta={self.entropy_beta}\n"
+            f"BatchSize={self.batch_size}, Gamma={self.gamma}\n"
+            f"BufferSize={self.cfg.buffer_capacity}, GAE_lambda={self.gae_lambda}, Entropy_beta={self.entropy_beta}\n"
             f"Advantage_clip={self.advantage_clip}, Gradient_clip_norm={self.gradient_clip_norm}\n"
             f"hiddens={self.hidden_dims}, Action Dim={self.action_dim}, State Dim={self.state_dim}"
         )
