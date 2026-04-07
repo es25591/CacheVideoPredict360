@@ -16,7 +16,7 @@ import torch.nn.functional as F
 
 from Sources.Core.device import resolve_torch_device
 from Sources.RL.Buffers import RolloutBuffer
-from Sources.RL.Networks import A2CNetwork
+from Sources.RL.Networks import A2CNetwork, A2CSharedNetwork
 from Sources.RL.ActionRanking import WolpertingerKnnSelector
 
 
@@ -88,26 +88,10 @@ class A2CWorker:
     def remember(self, state, action, reward, next_state, done):
         self.buffer.push(state, action, reward, next_state, done)
 
-    def select_action(self, state, action_space="base"):
+    def select_action(self, state):
         state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
 
         value, action_probs = self.network(state)
-
-        action_probs = action_probs.squeeze(0)
-        if action_space == "enh":
-            action_probs = action_probs[: self.cfg.action_dim_enh_focus]
-
-        action_probs = torch.nan_to_num(action_probs, nan=0.0, posinf=0.0, neginf=0.0)
-        action_probs = action_probs / (action_probs.sum() + 1e-12)
-
-        if self.action_temperature != 1.0:
-            tempered = torch.pow(action_probs + 1e-12, 1.0 / self.action_temperature)
-            action_probs = tempered / (tempered.sum() + 1e-12)
-
-        if self.random_action_prob > 0.0 and torch.rand(1).item() < self.random_action_prob:
-            action = torch.randint(0, action_probs.shape[0], (1,), device=self.device)
-            log_prob = torch.log(torch.clamp(torch.ones(1, device=self.device) / action_probs.shape[0], min=1e-12))
-            return action.item(), value.squeeze(), log_prob.squeeze(0)
 
         dist = torch.distributions.Categorical(probs=action_probs)
         action = dist.sample()
@@ -117,14 +101,15 @@ class A2CWorker:
 
     def train_step(self):
         self.step += 1
-        if len(self.buffer) < self.batch_size:
+        
+        if len(self.buffer) <= self.batch_size:# or self.step % self.nb_interval != 0:
             return None
 
         metrics = self.learn()
 
         # On-policy update: discard rollout after learning.
         self.buffer.clear()
-
+        
         return metrics
 
     def learn(self):
@@ -165,11 +150,11 @@ class A2CWorker:
         advantages = torch.FloatTensor(advantages_np).to(self.device)
         returns = torch.FloatTensor(returns_np).to(self.device)
 
-        # Normalize and clip advantages to stabilize actor updates.
-        advantage_mean = advantages.mean()
-        advantage_std = advantages.std().clamp_min(1e-8)
-        advantages = (advantages - advantage_mean) / advantage_std
-        advantages = torch.clamp(advantages, -self.advantage_clip, self.advantage_clip)
+        # # Normalize and clip advantages to stabilize actor updates.
+        # advantage_mean = advantages.mean()
+        # advantage_std = advantages.std().clamp_min(1e-8)
+        # advantages = (advantages - advantage_mean) / advantage_std
+        # advantages = torch.clamp(advantages, -self.advantage_clip, self.advantage_clip)
 
         # --- Actor update with entropy regularization ---
         value, log_prob, entropy = self.network(state, action)
@@ -212,7 +197,15 @@ class A2CWorker:
     def update_epsilon(self):
         self.buffer.clear()
         self.step = 0
-
+        
+    def __str__(self):
+        return (
+            f"A2CWorker(ActorLR={self.actor_optimizer.param_groups[0]['lr']:.6f}, "
+            f"CriticLR={self.critic_optimizer.param_groups[0]['lr']:.6f})\n"
+            f"BufferSize={len(self.buffer)}, GAE_lambda={self.gae_lambda}, Entropy_beta={self.entropy_beta}\n"
+            f"Advantage_clip={self.advantage_clip}, Gradient_clip_norm={self.gradient_clip_norm}\n"
+            f"hiddens={self.hidden_dims}, Action Dim={self.action_dim}, State Dim={self.state_dim}"
+        )
 
 class KnnA2CWorker(A2CWorker):
     """A2C worker with Wolpertinger-like KNN candidate pruning for discrete actions."""

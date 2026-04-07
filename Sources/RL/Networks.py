@@ -293,7 +293,13 @@ class DependentFocusQNetwork(nn.Module):
         return q_base, q_enh
 
 class A2CSharedNetwork(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=None, hidden_dims=(2048, 1024, 512)):
+    def __init__(
+        self, 
+        state_dim, 
+        action_dim, 
+        hidden_dim=None, 
+        hidden_dims=(2048, 1024, 512)
+    ):
         super(A2CSharedNetwork, self).__init__()        
 
         if hidden_dims is None:
@@ -307,7 +313,7 @@ class A2CSharedNetwork(nn.Module):
             raise ValueError("hidden_dims must contain at least one layer size")
 
         last_dim = hidden_dims[-1]
-        
+
         # --- 1. State Encoding Shared Layers ---
         encoder_layers = []
         in_dim = state_dim
@@ -363,29 +369,27 @@ class A2CNetwork(nn.Module):
 
         if len(hidden_dims) == 0:
             raise ValueError("hidden_dims must contain at least one layer size")
- 
+
         # Actor head: Outputs probabilities for each tile/action
-        self.actor = nn.Sequential(
-            nn.Linear(state_dim, hidden_dims[0]),
-            nn.ReLU(),
-            nn.Linear(hidden_dims[0], hidden_dims[1]),
-            nn.ReLU(),
-            nn.Linear(hidden_dims[1], hidden_dims[2]),
-            nn.ReLU(),
-            nn.Linear(hidden_dims[2], action_dim),
-            nn.Softmax(dim=-1)
-        )
-               
+        actor_layers = []
+        in_dim = state_dim
+        for dim in hidden_dims:
+            actor_layers.append(nn.Linear(in_dim, dim))
+            actor_layers.append(nn.ReLU())
+            in_dim = dim
+        actor_layers.append(nn.Linear(in_dim, action_dim))
+        actor_layers.append(nn.Softmax(dim=-1))
+        self.actor = nn.Sequential(*actor_layers)
+
         # Critic head: Outputs a single scalar value for the state
-        self.critic = nn.Sequential(
-            nn.Linear(state_dim, hidden_dims[0]),
-            nn.ReLU(),
-            nn.Linear(hidden_dims[0], hidden_dims[1]),
-            nn.ReLU(),
-            nn.Linear(hidden_dims[1], hidden_dims[2]),
-            nn.ReLU(),
-            nn.Linear(hidden_dims[2], 1)
-        )
+        critic_layers = []
+        in_dim = state_dim
+        for dim in hidden_dims:
+            critic_layers.append(nn.Linear(in_dim, dim))
+            critic_layers.append(nn.ReLU())
+            in_dim = dim
+        critic_layers.append(nn.Linear(in_dim, 1))
+        self.critic = nn.Sequential(*critic_layers)
 
     def _embedding(self, x):
         return self.actor[:-2](x)
@@ -408,3 +412,33 @@ class A2CNetwork(nn.Module):
             return value, dist.probs, embedding
 
         return value, dist.probs
+
+
+class PermutationInvariantEncoder(nn.Module):
+
+    def __init__(self, slot_dim=1, embed_dim=64):
+        super().__init__()
+
+        self.phi = nn.Sequential(
+            nn.Linear(slot_dim, 32),
+            nn.ReLU(),
+            nn.Linear(32, embed_dim)
+        )
+
+        self.rho = nn.Sequential(
+            nn.Linear(embed_dim, 128),
+            nn.ReLU()
+        )
+
+    def forward(self, x):
+        # x shape: [batch, 251]
+
+        x = x.unsqueeze(-1)      # [batch, 251, 1]
+
+        slot_embed = self.phi(x) # [batch, 251, embed_dim]
+
+        pooled = slot_embed.mean(dim=1)  # permutation invariant
+
+        state_embed = self.rho(pooled)
+
+        return state_embed

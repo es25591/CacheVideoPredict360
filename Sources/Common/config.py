@@ -37,13 +37,13 @@ class Config:
 
     learning_rate: float = 1e-3
     learning_rate_decay: float = 0.9995
-    learning_rate_actor: float = 7e-3
+    learning_rate_actor: float = 1e-3
     learning_rate_critic: float = 1e-3
 
     tau: float = 0.01
-    gamma: float = 0.9 # 0.6
-    batch_size: int = 512
-    buffer_capacity: int = 1000
+    gamma: float = 0.6 # 0.6
+    batch_size: int = 1024
+    buffer_capacity: int = 2000
     nb_interval: int = 200  # interval to update target network
     n_step: int = 1000
     optimizer: str = "adam"  # "adam" or "sgd"
@@ -75,9 +75,9 @@ class Config:
     # Paths for data and results
 
     ### Local Laptop
-    # path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
-    # path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
-    # path_trajectories: str = '/home/eduardo/Workspace/CacheVideoPredict360/Dataset/Trajectories'
+    path_data: str = '/home/eduardo/Workspace/CacheVideoPredict360/Data'
+    path_results: str = '/home/eduardo/Workspace/CacheVideoPredict360/Results'
+    path_trajectories: str = '/home/eduardo/Workspace/CacheVideoPredict360/Dataset/Trajectories'
 
     ### CERES
     # path_data: str = '/home/es25591/CacheVideoPredict360/Data'
@@ -85,16 +85,16 @@ class Config:
     # path_trajectories: str = '/home/es25591/CacheVideoPredict360/Dataset/Trajectories'
 
     ### Local 6G Lab
-    path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
-    path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
-    path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset' + r'\GeneratedTrajectories\len60'
+    # path_data: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Data'
+    # path_results: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Results'
+    # path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset' + r'\GeneratedTrajectories\len60'
 
     filename: str = f"lrdecay{learning_rate_decay}_c{cache_size}_ar{arrival_rate}_z{zipf_alpha}_gamma{gamma}.csv"
 
     state_dim: int = 10 * cache_size + 2 # 10*C + 2 = (2C + 2Ck) * 2 + 2 (Section VI-A)
     action_dim: int = 2  # 0 = Pass, 1 = Cache
     hidden_dim: int = 128
-    hidden_dims: tuple = (3012, 1024, 512)
+    hidden_dims: tuple = (2048, 1024, 512)
     
     action_dim_base_focus: int = cache_size + 1
     action_dim_enh_focus: int = viewport + 1
