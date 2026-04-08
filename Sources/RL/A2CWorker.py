@@ -97,7 +97,9 @@ class A2CWorker:
         action = dist.sample()
         log_prob = dist.log_prob(action)
 
-        return action.item(), value.squeeze(), log_prob.squeeze(0)
+        entropy = dist.entropy()
+
+        return action.item(), value.squeeze(), log_prob.squeeze(0), entropy.squeeze(0)
 
     def train_step(self):
         self.step += 1

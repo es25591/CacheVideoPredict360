@@ -403,6 +403,10 @@ class BaseWorker:
         self.epsilon = cfg.epsilon_start
         self.epsilon_min = cfg.epsilon_min
         self.epsilon_decay = cfg.epsilon_decay
+        self.exploration_strategy = getattr(cfg, "base_exploration_strategy", "epsilon_greedy")
+        self.temperature = getattr(cfg, "temperature_start", 1.0)
+        self.temperature_min = getattr(cfg, "temperature_min", 0.1)
+        self.temperature_decay = getattr(cfg, "temperature_decay", 0.995)
         self.batch_size = cfg.batch_size
         self.tau = cfg.tau
         self.device = resolve_torch_device()
@@ -436,13 +440,19 @@ class BaseWorker:
         self.nb_interval = cfg.nb_interval
 
     def select_action(self, state):
-        if random.random() < self.epsilon:
-            return random.randint(0, self.action_dim - 1)
-
         with torch.no_grad():
             state_t = torch.tensor(state, dtype=torch.float32).to(self.device).unsqueeze(0)
             qvals = self.policy_net(state_t)
-            return qvals.argmax().item()
+
+        if self.exploration_strategy == "boltzmann":
+            temperature = max(self.temperature_min, float(self.temperature))
+            probs = torch.softmax(qvals / temperature, dim=1)
+            return torch.multinomial(probs.squeeze(0), num_samples=1).item()
+
+        if random.random() < self.epsilon:
+            return random.randint(0, self.action_dim - 1)
+
+        return qvals.argmax().item()
 
     def remember(self, s, a, r, ns, done):
         self.buffer.push(s, a, r, ns, done)
@@ -490,7 +500,12 @@ class BaseWorker:
             tparam.data.copy_(tparam.data * (1.0 - self.tau) + pparam.data * self.tau)
 
     def update_epsilon(self):
-        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+        if self.exploration_strategy == "boltzmann":
+            self.temperature = max(self.temperature_min, self.temperature * self.temperature_decay)
+            # Keep epsilon in sync for existing logs/CSV pipelines that already track agent.epsilon.
+            self.epsilon = self.temperature
+        else:
+            self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
         self.step = 0
 
