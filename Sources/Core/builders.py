@@ -35,7 +35,11 @@ def build_environment(cfg):
         from Labs.Policy import DrlPolicy, MMSPPolicy
         from Labs.CacheEngine import CacheEngineEnv
         from Labs.UserRequest import UserRequestEvents
-        from Labs.EnvWrapper import EnvWrapper
+
+        if cfg.env_type == "cpt":
+            from Labs.EnvCPTWrapper import EnvWrapper
+        else:
+            from Labs.EnvWrapper import EnvWrapper
 
     du_caches = []
 
