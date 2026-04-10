@@ -39,6 +39,42 @@ class MultiHeadQNetwork(nn.Module):
         z = self.shared(x)
         return torch.stack([h(z) for h in self.heads], dim=1)
     
+class MultiHeadQNetwork(nn.Module):
+    def __init__(self, state_dim, action_dim, hidden_dim=512, latent_dim=256):
+        super(MultiHeadQNetwork, self).__init__()
+        
+        # 1. Shared Feature Extractor (The Backbone)
+        self.encoder = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, latent_dim),
+            nn.ReLU()
+        )
+        
+        # 2. Main Task Head: Q-Values
+        self.q_head = nn.Sequential(
+            nn.Linear(latent_dim, hidden_dim // 2),
+            nn.ReLU(),
+            nn.Linear(hidden_dim // 2, action_dim)
+        )
+        
+        # 3. Aux Task Head: Forward Dynamics (Predict next state)
+        # Takes the latent state + action to predict the next state
+        self.dynamics_head = nn.Sequential(
+            nn.Linear(latent_dim + action_dim, hidden_dim // 2),
+            nn.ReLU(),
+            nn.Linear(hidden_dim // 2, state_dim)
+        )
+
+    def forward(self, state):
+        latent = self.encoder(state)
+        q_values = self.q_head(latent)
+        return q_values, latent
+        
+    def predict_dynamics(self, latent, action_one_hot):
+        # Concatenate latent representation with the action taken
+        x = torch.cat([latent, action_one_hot], dim=-1)
+        return self.dynamics_head(x)
 
 class FocusQNetwork(nn.Module):
     def __init__(

@@ -387,7 +387,7 @@ class MultiheadWorker:
         # Set to train mode
         self.policy_net.train()
         print(f"Successfully loaded checkpoint from {path} at step {self.step}")
-        
+
 class BaseWorker:
     def __init__(self, cfg, debugger=None):
         self.cfg = cfg
@@ -425,6 +425,23 @@ class BaseWorker:
         ).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
+        # MultiHead Version:
+        self.policy_net = MultiHeadQNetwork(
+            self.state_dim, 
+            self.action_dim, 
+            hidden_dim=cfg.hidden_dim_base_focus
+        ).to(self.device)
+
+        self.target_net = MultiHeadQNetwork(
+            self.state_dim, 
+            self.action_dim, 
+            hidden_dim=cfg.hidden_dim_base_focus
+        ).to(self.device)
+        self.target_net.load_state_dict(self.policy_net.state_dict())
+        self.lambda_dyn = getattr(cfg, "lambda_dyn", 0.1) 
+        self.aux_loss_fn = nn.MSELoss()
+        # End MultiHead Version
+        
         if cfg.optimizer == "adam":
             self.optimizer = optim.Adam(self.policy_net.parameters(), lr=cfg.learning_rate)
         elif cfg.optimizer == "sgd":
@@ -442,7 +459,8 @@ class BaseWorker:
     def select_action(self, state):
         with torch.no_grad():
             state_t = torch.tensor(state, dtype=torch.float32).to(self.device).unsqueeze(0)
-            qvals = self.policy_net(state_t)
+            # Unpack the tuple, we only need qvals here
+            qvals, _ = self.policy_net(state_t)
 
         if self.exploration_strategy == "boltzmann":
             temperature = max(self.temperature_min, float(self.temperature))
@@ -462,35 +480,58 @@ class BaseWorker:
         if self.step % self.nb_interval == 0 and \
            len(self.buffer) >= self.batch_size:
             self.learn()
-
+            
     def learn(self):
-        batch = self.buffer.sample(self.batch_size)
-        s, a, r, ns, d = zip(*batch)
+            batch = self.buffer.sample(self.batch_size)
+            s, a, r, ns, d = zip(*batch)
 
-        s = torch.tensor(np.stack(s), dtype=torch.float32).to(self.device)
-        ns = torch.tensor(np.stack(ns), dtype=torch.float32).to(self.device)
-        a = torch.tensor(a, dtype=torch.int64).to(self.device)
-        r = torch.tensor(r, dtype=torch.float32).to(self.device)
-        d = torch.tensor(d, dtype=torch.float32).to(self.device)
+            s = torch.tensor(np.stack(s), dtype=torch.float32).to(self.device)
+            ns = torch.tensor(np.stack(ns), dtype=torch.float32).to(self.device)
+            a = torch.tensor(a, dtype=torch.int64).to(self.device)
+            r = torch.tensor(r, dtype=torch.float32).to(self.device)
+            d = torch.tensor(d, dtype=torch.float32).to(self.device)
 
-        with torch.no_grad():
-            next_q = self.target_net(ns).max(1)[0]
-            n_step_gamma = self.gamma ** self.n_step
-            q_target = r + n_step_gamma * next_q * (1.0 - d)
+            # 1. Standard DQN Target Calculation (using target net)
+            with torch.no_grad():
+                # Target net also returns a tuple, extract q-values
+                next_q_vals, _ = self.target_net(ns)
+                next_q = next_q_vals.max(1)[0]
+                n_step_gamma = self.gamma ** self.n_step
+                q_target = r + n_step_gamma * next_q * (1.0 - d)
 
-        q_expected = self.policy_net(s).gather(1, a.unsqueeze(1)).squeeze(1)
+            # 2. Forward Pass on Policy Net
+            q_expected, latent_s = self.policy_net(s)
+            q_expected = q_expected.gather(1, a.unsqueeze(1)).squeeze(1)
 
-        loss = self.loss_fn(q_expected, q_target)
+            # 3. Calculate Main DQN Loss
+            loss_dqn = self.loss_fn(q_expected, q_target)
 
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-        self.scheduler.step()
+            # 4. Calculate Auxiliary Loss (Forward Dynamics)
+            # Convert actions to one-hot for the dynamics head
+            a_one_hot = F.one_hot(a, num_classes=self.action_dim).float()
+            
+            # Predict the next state based on current latent state and action
+            predicted_ns = self.policy_net.predict_dynamics(latent_s, a_one_hot)
+            
+            # Calculate MSE between predicted next state and actual next state
+            loss_dyn = self.aux_loss_fn(predicted_ns, ns)
 
-        self.update_target()
+            # 5. Combine Losses
+            total_loss = loss_dqn + (self.lambda_dyn * loss_dyn)
 
-        self.debugger.log('train_loss_base', loss.item())
-        self.debugger.log('epsilon_base', self.epsilon)
+            # 6. Backpropagation
+            self.optimizer.zero_grad()
+            total_loss.backward()
+            self.optimizer.step()
+            self.scheduler.step()
+
+            self.update_target()
+
+            # Log both losses separately for debugging
+            self.debugger.log('train_loss_dqn', loss_dqn.item())
+            self.debugger.log('train_loss_aux', loss_dyn.item())
+            self.debugger.log('train_loss_total', total_loss.item())
+            self.debugger.log('epsilon_base', self.epsilon)
 
     def update_target(self):
         self.target_net.load_state_dict(self.policy_net.state_dict())
