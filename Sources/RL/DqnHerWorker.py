@@ -19,27 +19,21 @@ from Sources.RL.Buffers import NStepReplayBuffer
 from Sources.RL.Networks import HierarchicalDQNet, QNetwork, MultiHeadQNetwork, FocusQNetwork, DiscretePDQN
 
 
-
-
-class DQNWorker:
+class DqnHerWorker:
     def __init__(self, cfg, debugger=None):
         self.cfg = cfg
         self.debugger = debugger
 
         self.step = 0
         self.n_step = cfg.n_step
-        self.state_dim = cfg.state_dim_base_focus
-        self.action_dim = cfg.action_dim_base_focus
-        self.hidden_dims = cfg.hidden_dim_base_focus
+        self.state_dim = cfg.state_dim
+        self.action_dim = cfg.action_dim
+        self.hidden_dims = cfg.hidden_dim
 
         self.gamma = cfg.gamma
         self.epsilon = cfg.epsilon_start
         self.epsilon_min = cfg.epsilon_min
         self.epsilon_decay = cfg.epsilon_decay
-        self.exploration_strategy = getattr(cfg, "base_exploration_strategy", "epsilon_greedy")
-        self.temperature = getattr(cfg, "temperature_start", 1.0)
-        self.temperature_min = getattr(cfg, "temperature_min", 0.1)
-        self.temperature_decay = getattr(cfg, "temperature_decay", 0.995)
         self.batch_size = cfg.batch_size
         self.tau = cfg.tau
         self.device = resolve_torch_device()
@@ -49,12 +43,12 @@ class DQNWorker:
         self.policy_net = QNetwork(
             self.state_dim, 
             self.action_dim, 
-            hidden_dim=cfg.hidden_dim_base_focus
+            hidden_dim=self.hidden_dim
         ).to(self.device)
         self.target_net = QNetwork(
             self.state_dim, 
             self.action_dim, 
-            hidden_dim=cfg.hidden_dim_base_focus
+            hidden_dim=self.hidden_dim
         ).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
@@ -73,17 +67,12 @@ class DQNWorker:
         self.nb_interval = cfg.nb_interval
 
     def select_action(self, state):
+        if random.random() < self.epsilon:
+            return random.randint(0, self.action_dim - 1)
+
         with torch.no_grad():
             state_t = torch.tensor(state, dtype=torch.float32).to(self.device).unsqueeze(0)
             qvals = self.policy_net(state_t)
-
-        if self.exploration_strategy == "boltzmann":
-            temperature = max(self.temperature_min, float(self.temperature))
-            probs = torch.softmax(qvals / temperature, dim=1)
-            return torch.multinomial(probs.squeeze(0), num_samples=1).item()
-
-        if random.random() < self.epsilon:
-            return random.randint(0, self.action_dim - 1)
 
         return qvals.argmax().item()
 
@@ -92,8 +81,7 @@ class DQNWorker:
 
     def train_step(self):
         self.step += 1
-        if self.step % self.nb_interval == 0 and \
-           len(self.buffer) >= self.batch_size:
+        if len(self.buffer) >= self.batch_size and self.step % self.nb_interval == 0:
             self.learn()
 
     def learn(self):
@@ -133,13 +121,7 @@ class DQNWorker:
             tparam.data.copy_(tparam.data * (1.0 - self.tau) + pparam.data * self.tau)
 
     def update_epsilon(self):
-        if self.exploration_strategy == "boltzmann":
-            self.temperature = max(self.temperature_min, self.temperature * self.temperature_decay)
-            # Keep epsilon in sync for existing logs/CSV pipelines that already track agent.epsilon.
-            self.epsilon = self.temperature
-        else:
-            self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
-
+        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
         self.step = 0
 
     def __str__(self):
