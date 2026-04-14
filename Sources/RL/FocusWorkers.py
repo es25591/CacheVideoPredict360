@@ -496,7 +496,7 @@ class BaseWorker:
                 # Target net also returns a tuple, extract q-values
                 next_q_vals, _ = self.target_net(ns)
                 next_q = next_q_vals.max(1)[0]
-                n_step_gamma = self.gamma ** self.n_step
+                n_step_gamma = self.gamma
                 q_target = r + n_step_gamma * next_q * (1.0 - d)
 
             # 2. Forward Pass on Policy Net

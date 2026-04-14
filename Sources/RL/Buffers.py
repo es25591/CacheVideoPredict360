@@ -38,8 +38,11 @@ class NStepReplayBuffer:
     def _get_n_step_info(self):
         reward = 0
         for i, transition in enumerate(self.n_step_buffer):
-            reward += (self.gamma ** i) * transition[2]
-
+            # reward += (self.gamma ** i) * transition[2]
+            reward += transition[2]
+            
+        reward = reward / self.n_step
+        
         return reward, self.n_step_buffer[-1][3], self.n_step_buffer[-1][4]
     
     def compute_gae(self, rewards, values, next_value, dones, lam=0.95):
