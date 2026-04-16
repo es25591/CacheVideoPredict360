@@ -482,56 +482,37 @@ class BaseWorker:
             self.learn()
             
     def learn(self):
-            batch = self.buffer.sample(self.batch_size)
-            s, a, r, ns, d = zip(*batch)
+        batch = self.buffer.sample(self.batch_size)
+        s, a, r, ns, d = zip(*batch)
 
-            s = torch.tensor(np.stack(s), dtype=torch.float32).to(self.device)
-            ns = torch.tensor(np.stack(ns), dtype=torch.float32).to(self.device)
-            a = torch.tensor(a, dtype=torch.int64).to(self.device)
-            r = torch.tensor(r, dtype=torch.float32).to(self.device)
-            d = torch.tensor(d, dtype=torch.float32).to(self.device)
+        s = torch.tensor(np.stack(s), dtype=torch.float32).to(self.device)
+        ns = torch.tensor(np.stack(ns), dtype=torch.float32).to(self.device)
+        a = torch.tensor(a, dtype=torch.int64).to(self.device)
+        r = torch.tensor(r, dtype=torch.float32).to(self.device)
+        d = torch.tensor(d, dtype=torch.float32).to(self.device)
 
-            # 1. Standard DQN Target Calculation (using target net)
-            with torch.no_grad():
-                # Target net also returns a tuple, extract q-values
-                next_q_vals, _ = self.target_net(ns)
-                next_q = next_q_vals.max(1)[0]
-                n_step_gamma = self.gamma
-                q_target = r + n_step_gamma * next_q * (1.0 - d)
-
-            # 2. Forward Pass on Policy Net
-            q_expected, latent_s = self.policy_net(s)
-            q_expected = q_expected.gather(1, a.unsqueeze(1)).squeeze(1)
-
-            # 3. Calculate Main DQN Loss
-            loss_dqn = self.loss_fn(q_expected, q_target)
-
-            # 4. Calculate Auxiliary Loss (Forward Dynamics)
-            # Convert actions to one-hot for the dynamics head
-            a_one_hot = F.one_hot(a, num_classes=self.action_dim).float()
+        # 1. Standard DQN Target Calculation (using target net)
+        with torch.no_grad():
+            # Target net also returns a tuple, extract q-values
+            next_q_vals, _ = self.target_net(ns)
+            next_q = next_q_vals.max(1)[0]
+            n_step_gamma = self.gamma
+            q_target = r + n_step_gamma * next_q * (1.0 - d)
             
-            # Predict the next state based on current latent state and action
-            predicted_ns = self.policy_net.predict_dynamics(latent_s, a_one_hot)
-            
-            # Calculate MSE between predicted next state and actual next state
-            loss_dyn = self.aux_loss_fn(predicted_ns, ns)
+        # ---------- expected ----------
+        q_expected = self.policy_net(s)[0].gather(1, a.unsqueeze(1)).squeeze(1)
 
-            # 5. Combine Losses
-            total_loss = loss_dqn + (self.lambda_dyn * loss_dyn)
+        loss = self.loss_fn(q_expected, q_target)
 
-            # 6. Backpropagation
-            self.optimizer.zero_grad()
-            total_loss.backward()
-            self.optimizer.step()
-            self.scheduler.step()
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        self.scheduler.step()
+        self.update_target()
 
-            self.update_target()
-
-            # Log both losses separately for debugging
-            self.debugger.log('train_loss_dqn', loss_dqn.item())
-            self.debugger.log('train_loss_aux', loss_dyn.item())
-            self.debugger.log('train_loss_total', total_loss.item())
-            self.debugger.log('epsilon_base', self.epsilon)
+        # Log both losses separately for debugging
+        self.debugger.log('train_loss_base', loss.item())
+        self.debugger.log('epsilon_base', self.epsilon)
 
     def update_target(self):
         self.target_net.load_state_dict(self.policy_net.state_dict())

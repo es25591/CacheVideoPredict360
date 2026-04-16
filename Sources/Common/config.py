@@ -4,7 +4,7 @@ from dataclasses import dataclass
 class Config:
     has_warmup: int = True
 
-    env_type: str = "cpt"  # "cpt" or "standard"
+    env_type: str = "standard"  # "cpt" or "standard"
 
     n_episodes: int = 400
     max_steps: int = 10000
@@ -32,7 +32,7 @@ class Config:
     cache_size: int = int(cache_capacity_percent * n_videos)
 
     # Hyperparameters for RL
-    epsilon_start: float = 1.0
+    epsilon_start: float = 0.05
     epsilon_min: float = 0.05
     epsilon_decay: float = 0.985
     base_exploration_strategy: str = "epsilon_greedy"  # "epsilon_greedy" or "boltzmann"
@@ -41,17 +41,17 @@ class Config:
     temperature_decay: float = 0.995
     entropy_coef: float = 0.02
 
-    learning_rate: float = 1e-4
-    learning_rate_decay: float = 0.995
-    learning_rate_actor: float = 5e-3
+    learning_rate: float = 1e-3
+    learning_rate_decay: float = 0.9995
+    learning_rate_actor: float = 1e-3
     learning_rate_critic: float = 1e-3
 
     tau: float = 0.01
-    gamma: float = 0.9 # 0.6
+    gamma: float = 0.6 # 0.6
     batch_size: int = 32
     buffer_capacity: int = 2000
     nb_interval: int = 200  # interval to update target network
-    n_step: int = 300
+    n_step: int = 1000
     optimizer: str = "adam"  # "adam" or "sgd"
 
     # A2C-specific hyperparameters
@@ -96,6 +96,8 @@ class Config:
     path_trajectories: str = r'c:\Users\es25591\Workspace\CacheVideoPredict360\Dataset' + r'\GeneratedTrajectories\len60'
 
     filename: str = f"lrdecay{learning_rate_decay}_c{cache_size}_ar{arrival_rate}_z{zipf_alpha}_gamma{gamma}.csv"
+
+    omega: float = 1.0 # weight for heuristic values in action selection
 
     state_dim: int = 10 * cache_size + 2 # 10*C + 2 = (2C + 2Ck) * 2 + 2 (Section VI-A)
     action_dim: int = 2  # 0 = Pass, 1 = Cache
