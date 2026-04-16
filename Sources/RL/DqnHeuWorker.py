@@ -86,18 +86,13 @@ class LFUHeuristic:
         return int(np.argmin(noisy_state))
 
     def get_heuristic_values(self, state):
-        # Deconcatenate state: [x_s, x_l, y_s, y_l, step_indicators]
         cache_size = self.cache_size
+
         y_s = state[2*cache_size]
         y_l = state[2*cache_size + 1]
         
         x_s = y_s + state[:cache_size]
         x_l = y_l + state[cache_size:2*cache_size]
-        
-        # step_indicators are not needed for LFU heuristic
-        
-        # Invert frequencies: lower freq → higher heuristic value
-        # Focus on cache slot frequencies, not current request
         
         max_freq_s = np.max(x_s)
         max_freq_l = np.max(x_l)
@@ -105,7 +100,7 @@ class LFUHeuristic:
         h_cache_s = max_freq_s - x_s
         h_cache_l = max_freq_l - x_l
         
-        alpha = 0.5
+        alpha = 0.0
         h = alpha * h_cache_s + (1 - alpha) * h_cache_l
 
         return h
@@ -173,10 +168,10 @@ class DqnHeuWorker:
 
         print("Q-values before heuristic adjustment:", np.sum(qvals.cpu().numpy()))
 
-        heuristic_values = self.teacher.get_heuristic_values(state)
+        # heuristic_values = self.teacher.get_heuristic_values(state)
 
-        h_tensor = torch.tensor(heuristic_values, dtype=torch.float32).to(self.device)        
-        qvals = qvals + (self.omega * h_tensor)
+        # h_tensor = torch.tensor(heuristic_values, dtype=torch.float32).to(self.device)        
+        # qvals = qvals + (self.omega * h_tensor)
 
         return qvals.argmax().item()
 
