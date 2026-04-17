@@ -77,13 +77,10 @@ class LFUHeuristic:
         self.cache_size = cache_size
         
     def get_action(self, state):
-        state = np.array(state)
+        y_l = state[2*self.cache_size + 1]        
+        x_l = y_l + state[self.cache_size:2*self.cache_size]
 
-        # Add small noise to avoid deterministic ties
-        noisy_state = state
-
-        # LFU: evict the item with minimum frequency
-        return int(np.argmin(noisy_state))
+        return int(np.argmin(y_l + x_l))
 
     def get_heuristic_values(self, state):
         cache_size = self.cache_size
@@ -168,7 +165,11 @@ class DqnHeuWorker:
 
         print("Q-values before heuristic adjustment:", np.sum(qvals.cpu().numpy()))
 
-        # heuristic_values = self.teacher.get_heuristic_values(state)
+        action, value = self.teacher.get_heuristic_values(state)
+
+        eta = 1.0
+        h = qvals.argmax().item() - qvals[action].item() - eta
+        qvals[0, action] += h
 
         # h_tensor = torch.tensor(heuristic_values, dtype=torch.float32).to(self.device)        
         # qvals = qvals + (self.omega * h_tensor)
