@@ -91,16 +91,9 @@ class LFUHeuristic:
         x_s = y_s + state[:cache_size]
         x_l = y_l + state[cache_size:2*cache_size]
         
-        max_freq_s = np.max(x_s)
-        max_freq_l = np.max(x_l)
+        arg_max_l = np.argmin(x_l)
         
-        h_cache_s = max_freq_s - x_s
-        h_cache_l = max_freq_l - x_l
-        
-        alpha = 0.0
-        h = alpha * h_cache_s + (1 - alpha) * h_cache_l
-
-        return h
+        return arg_max_l, x_l[arg_max_l]
 
 class DqnHeuWorker:
     def __init__(self, cfg, debugger=None):
@@ -167,14 +160,15 @@ class DqnHeuWorker:
 
         action, value = self.teacher.get_heuristic_values(state)
 
+        # Clamp heuristic action to valid action space and work on the 1D Q vector.
+        action = int(np.clip(action, 0, self.action_dim - 1))
+        qvals_1d = qvals[0]
+
         eta = 1.0
-        h = qvals.argmax().item() - qvals[action].item() - eta
-        qvals[0, action] += h
+        h = qvals_1d.argmax().item() - qvals_1d[action].item() - eta
+        qvals_1d[action] += h
 
-        # h_tensor = torch.tensor(heuristic_values, dtype=torch.float32).to(self.device)        
-        # qvals = qvals + (self.omega * h_tensor)
-
-        return qvals.argmax().item()
+        return qvals_1d.argmax().item()
 
     def remember(self, s, a, r, ns, done):
         self.buffer.push(s, a, r, ns, done)
