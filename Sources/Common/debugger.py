@@ -157,13 +157,16 @@ class AgentDebugger:
             "correlation": corr,
         }
 
-    def save_results(self, filepath="log_results", format=None):
+    def save_results(self, filepath="log_results", format=None, separate_keys=None):
         """
         Store the collected simulation results to a file.
 
         Args:
             filepath: Path where to save the results
             format: 'pickle', 'json', or 'csv'
+            separate_keys: list of key names to save in separate files
+                          e.g., separate_keys=['reward', 'loss']
+                          will create: {filepath}_reward.json, {filepath}_loss.json
         """
         if format is None:
             format = 'json'
@@ -172,10 +175,29 @@ class AgentDebugger:
             key: [self._to_python(v) for v in values]
             for key, values in self.data.items()
         }
-
+        
         if format == 'json':
-            with open(f"{filepath}.json", "w") as f:
-                json.dump(serializable_data, f, indent=2)
+            # Combine explicitly provided separate_keys with any keys containing "action"
+            separate_keys_set = set(separate_keys or [])
+            action_keys = {k for k in serializable_data.keys() if 'action' in str(k).lower()}
+            separate_keys_set.update(action_keys)
+            
+            if separate_keys_set:
+                # Save all separate_keys to one file
+                separate_data = {k: serializable_data[k] for k in separate_keys_set if k in serializable_data}
+                if separate_data:
+                    with open(f"{filepath}_actions.json", "w") as f:
+                        json.dump(separate_data, f, indent=2)
+                
+                # Save remaining keys to main file
+                remaining_data = {k: v for k, v in serializable_data.items() if k not in separate_keys_set}
+                if remaining_data:
+                    with open(f"{filepath}.json", "w") as f:
+                        json.dump(remaining_data, f, indent=2)
+            else:
+                # Original behavior: save all to one file
+                with open(f"{filepath}.json", "w") as f:
+                    json.dump(serializable_data, f, indent=2)
 
         elif format == 'csv':    
             keys = list(serializable_data.keys())
