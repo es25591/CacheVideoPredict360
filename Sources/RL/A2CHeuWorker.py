@@ -16,27 +16,51 @@ import torch.nn.functional as F
 
 from Sources.Core.device import resolve_torch_device
 from Sources.RL.Buffers import RolloutBuffer
-from Sources.RL.Networks import A2CNetwork, A2CSharedNetwork
+from Sources.RL.Networks import A2CHeuNetwork, A2CNetwork, A2CSharedNetwork
 from Sources.RL.ActionRanking import WolpertingerKnnSelector
 
+
+class LFUHeuristic:
+    def __init__(self, cache_size):
+        self.cache_size = cache_size * 5
+
+    def get_action(self, state):
+        y_l = state[2*self.cache_size + 1]
+        x_l = y_l + state[self.cache_size:2*self.cache_size]
+
+        return int(np.argmin(y_l + x_l))
+
+    def get_heuristic_values(self, state):
+        cache_size = self.cache_size
+
+        y_s = state[2*cache_size]
+        y_l = state[2*cache_size + 1]
+
+        x_s = y_s + state[:cache_size]
+        x_l = y_l + state[cache_size:2*cache_size]
+
+        arg_max_s = np.argmin(x_s)
+        arg_max_l = np.argmin(x_l)
+
+        return arg_max_s, x_s[arg_max_s], arg_max_l, x_l[arg_max_l]
 
 class A2CHeuWorker:
     def __init__(self, cfg, debugger=None):
         self.device = resolve_torch_device()
-        
+
         self.cfg = cfg
         self.debugger = debugger
 
         self.step = 0
         self.n_step = cfg.n_step
-        self.state_dim = cfg.state_dim_base_focus
-        self.action_dim = cfg.action_dim_base_focus
+        self.state_dim = cfg.state_dim
+        self.action_dim = cfg.action_dim
         self.hidden_dims = cfg.hidden_dims
 
         self.epsilon = 0.0 
         self.gamma = cfg.gamma
         self.batch_size = cfg.batch_size
-        
+
         # A2C-specific hyperparameters
         self.gae_lambda = cfg.gae_lambda
         self.entropy_beta = cfg.entropy_beta
@@ -46,7 +70,7 @@ class A2CHeuWorker:
         # A2C is on-policy: keep an ordered rollout and update from contiguous transitions.
         self.buffer = RolloutBuffer(cfg.buffer_capacity)
 
-        self.network = A2CNetwork(
+        self.network = A2CHeuNetwork(
             state_dim=self.state_dim, 
             action_dim=self.action_dim,
             hidden_dims=self.hidden_dims
@@ -83,15 +107,33 @@ class A2CHeuWorker:
         self.loss_fn = nn.MSELoss()
         self.nb_interval = cfg.nb_interval
 
+        self.teacher = LFUHeuristic(cache_size=cfg.cache_size)
+
+        self.action_call_count = 0
+    
     def remember(self, state, action, reward, next_state, done):
         self.buffer.push(state, action, reward, next_state, done)
 
     def select_action(self, state):
         state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
 
-        value, action_probs = self.network(state)
+        _, _, teacher_action, _ = self.teacher.get_heuristic_values(
+            state.cpu().numpy().squeeze(0)
+        )
 
-        dist = torch.distributions.Categorical(probs=action_probs)
+        value, logits = self.network(state)
+        
+        eta = 0.1
+        beta = 1.0
+        logits[0, teacher_action] += (logits[0].max() - logits[0, teacher_action]) ** beta + eta 
+
+        probs = F.softmax(logits, dim=-1)
+
+        # self.action_call_count += 1
+        # if self.action_call_count % 100 == 0:
+        #     print("probs =", probs.detach().cpu().numpy())
+
+        dist = torch.distributions.Categorical(probs=probs)
         action = dist.sample()
         log_prob = dist.log_prob(action)
 
@@ -101,7 +143,7 @@ class A2CHeuWorker:
 
     def train_step(self):
         self.step += 1
-        
+
         if len(self.buffer) < self.batch_size:# or self.step % self.nb_interval != 0:
             return None
 
@@ -109,7 +151,7 @@ class A2CHeuWorker:
 
         # On-policy update: discard rollout after learning.
         self.buffer.clear()
-        
+
         return metrics
 
     def learn(self):
@@ -157,14 +199,14 @@ class A2CHeuWorker:
         # advantages = torch.clamp(advantages, -self.advantage_clip, self.advantage_clip)
 
         # --- Actor update with entropy regularization ---
-        value, log_prob, entropy = self.network(state, action)
+        value, logits = self.network(state)
+        
+        probs = F.log_softmax(logits, dim=-1)
+        prob = probs.gather(1, action.unsqueeze(1)).squeeze(1)
 
         # Actor loss: policy gradient with entropy bonus for exploration
-        actor_loss = - (log_prob * advantages.detach()).mean()
-        entropy_loss = -self.entropy_beta * entropy.mean()  # Negative because we want to maximize entropy
-        actor_total_loss = actor_loss + entropy_loss
-
-        self.actor_optimizer.zero_grad()
+        actor_loss = - (prob * advantages.detach()).mean()
+     
         actor_loss.backward()
         nn.utils.clip_grad_norm_(self.network.actor.parameters(), max_norm=self.gradient_clip_norm)
         self.actor_optimizer.step()
@@ -184,9 +226,7 @@ class A2CHeuWorker:
         metrics = {
             'train_loss': float(total_loss.item()),
             'actor_loss': float(actor_loss.item()),
-            'entropy_loss': float(entropy_loss.item()),
             'critic_loss': float(critic_loss.item()),
-            'policy_entropy': float(entropy.mean().item()),
             'rollout_size': int(rollout_horizon),
             'advantage_min': float(advantages.min().item()),
             'advantage_max': float(advantages.max().item())

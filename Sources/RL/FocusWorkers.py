@@ -459,7 +459,6 @@ class BaseWorker:
     def select_action(self, state):
         with torch.no_grad():
             state_t = torch.tensor(state, dtype=torch.float32).to(self.device).unsqueeze(0)
-            # Unpack the tuple, we only need qvals here
             qvals, _ = self.policy_net(state_t)
 
         if self.exploration_strategy == "boltzmann":

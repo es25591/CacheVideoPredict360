@@ -450,13 +450,10 @@ class A2CNetwork(nn.Module):
         critic_layers.append(nn.Linear(in_dim, 1))
         self.critic = nn.Sequential(*critic_layers)
         
-        self.teacher = LFUHeuristic(cache_size=action_dim)
 
     def forward(self, x, action=None):
         value = self.critic(x)
         logits = self.actor(x)
-
-        action, value = self.teacher.get_heuristic_values(state)
 
         probs = F.softmax(logits, dim=-1)
 
@@ -468,6 +465,53 @@ class A2CNetwork(nn.Module):
             return value, log_prob, entropy
 
         return value, dist.probs
+
+
+class A2CHeuNetwork(nn.Module):
+    def __init__(
+        self, 
+        state_dim, 
+        action_dim, 
+        hidden_dim=None, 
+        hidden_dims=(2048, 1024, 512)
+    ):
+        super(A2CHeuNetwork, self).__init__()
+
+        if hidden_dims is None:
+            hidden_dims = (hidden_dim,)
+        elif isinstance(hidden_dims, int):
+            hidden_dims = (hidden_dims,)
+        else:
+            hidden_dims = tuple(hidden_dims)
+
+        if len(hidden_dims) == 0:
+            raise ValueError("hidden_dims must contain at least one layer size")
+
+        # Actor head: Outputs probabilities for each tile/action
+        actor_layers = []
+        in_dim = state_dim
+        for dim in hidden_dims:
+            actor_layers.append(nn.Linear(in_dim, dim))
+            actor_layers.append(nn.ReLU())
+            in_dim = dim
+        actor_layers.append(nn.Linear(in_dim, action_dim))
+        self.actor = nn.Sequential(*actor_layers)
+
+        # Critic head: Outputs a single scalar value for the state
+        critic_layers = []
+        in_dim = state_dim
+        for dim in hidden_dims:
+            critic_layers.append(nn.Linear(in_dim, dim))
+            critic_layers.append(nn.ReLU())
+            in_dim = dim
+        critic_layers.append(nn.Linear(in_dim, 1))
+        self.critic = nn.Sequential(*critic_layers)
+
+    def forward(self, x, action=None):
+        value = self.critic(x)
+        logits = self.actor(x)
+
+        return value, logits
 
 
 class PermutationInvariantEncoder(nn.Module):
