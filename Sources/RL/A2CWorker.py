@@ -15,7 +15,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 from Sources.Core.device import resolve_torch_device
-from Sources.RL.Buffers import RolloutBuffer
+from Sources.RL.Buffers import NStepReplayBuffer, RolloutBuffer
 from Sources.RL.Networks import A2CNetwork, A2CSharedNetwork
 from Sources.RL.ActionRanking import WolpertingerKnnSelector
 
@@ -23,7 +23,7 @@ from Sources.RL.ActionRanking import WolpertingerKnnSelector
 class A2CWorker:
     def __init__(self, cfg, debugger=None):
         self.device = resolve_torch_device()
-        
+
         self.cfg = cfg
         self.debugger = debugger
 
@@ -45,8 +45,8 @@ class A2CWorker:
         self.action_temperature = float(getattr(cfg, "action_temperature", 1.0))
         self.random_action_prob = float(getattr(cfg, "random_action_prob", 0.0))
 
-        # A2C is on-policy: keep an ordered rollout and update from contiguous transitions.
-        self.buffer = RolloutBuffer(cfg.buffer_capacity)
+        # self.buffer = RolloutBuffer(cfg.buffer_capacity)
+        self.buffer = NStepReplayBuffer(cfg.buffer_capacity, self.n_step, self.gamma)
 
         self.network = A2CNetwork(
             state_dim=self.state_dim, 
@@ -80,20 +80,20 @@ class A2CWorker:
             gamma=cfg.learning_rate_decay
         )
 
-        self.scheduler = self.actor_scheduler  # Assuming both schedulers have the same decay
+        self.scheduler = self.actor_scheduler
 
         self.loss_fn = nn.MSELoss()
         self.nb_interval = cfg.nb_interval
 
-    def remember(self, state, action, reward, next_state, done):
-        self.buffer.push(state, action, reward, next_state, done)
+    def remember(self, s, a, r, ns, d):
+        self.buffer.push(s, a, r, ns, d)
 
     def select_action(self, state):
         state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
 
-        value, action_probs = self.network(state)
+        value, probs = self.network(state)
 
-        dist = torch.distributions.Categorical(probs=action_probs)
+        dist = torch.distributions.Categorical(probs=probs)
         action = dist.sample()
         log_prob = dist.log_prob(action)
 
@@ -103,15 +103,15 @@ class A2CWorker:
 
     def train_step(self):
         self.step += 1
-        
-        if len(self.buffer) < self.batch_size:# or self.step % self.nb_interval != 0:
+
+        if len(self.buffer) < self.batch_size:
             return None
 
         metrics = self.learn()
 
         # On-policy update: discard rollout after learning.
         self.buffer.clear()
-        
+
         return metrics
 
     def learn(self):

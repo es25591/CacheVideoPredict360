@@ -14,6 +14,9 @@ class ReplayBuffer:
     def sample(self, batch_size: int):
         return random.sample(self.memory, batch_size)
     
+    def get_all(self):
+        return self.memory
+
     def __len__(self):
         return len(self.memory)
 
@@ -45,47 +48,66 @@ class NStepReplayBuffer:
         
         return reward, self.n_step_buffer[-1][3], self.n_step_buffer[-1][4]
     
-    def compute_gae(self, rewards, values, next_value, dones, lam=0.95):
-        """
-        Compute Generalized Advantage Estimation (GAE).
+    # def compute_gae(self, rewards, values, next_value, dones, lam=0.95):
+    #     """
+    #     Compute Generalized Advantage Estimation (GAE).
         
-        Args:
-            rewards: List of rewards from batch (shape: [batch_size])
-            values: List of state values from critic (shape: [batch_size])
-            next_value: Value of the next state (scalar)
-            dones: List of done flags (shape: [batch_size])
-            lam: GAE lambda parameter (0.95 is standard)
+    #     Args:
+    #         rewards: List of rewards from batch (shape: [batch_size])
+    #         values: List of state values from critic (shape: [batch_size])
+    #         next_value: Value of the next state (scalar)
+    #         dones: List of done flags (shape: [batch_size])
+    #         lam: GAE lambda parameter (0.95 is standard)
             
-        Returns:
-            advantages: GAE advantages (shape: [batch_size])
-            returns: TD targets for critic (shape: [batch_size])
+    #     Returns:
+    #         advantages: GAE advantages (shape: [batch_size])
+    #         returns: TD targets for critic (shape: [batch_size])
+    #     """
+    #     advantages = np.zeros(len(rewards), dtype=np.float32)
+    #     gae = 0
+        
+    #     # Process in reverse order
+    #     next_value_t = next_value
+    #     for t in reversed(range(len(rewards))):
+    #         if t == len(rewards) - 1:
+    #             next_value_t = next_value
+    #         else:
+    #             next_value_t = values[t + 1]
+            
+    #         # TD residual (TD error): δ = r + γV(s') - V(s)
+    #         delta = rewards[t] + self.gamma * next_value_t * (1 - dones[t]) - values[t]
+            
+    #         # GAE: A(t) = δ(t) + (λγ)δ(t+1) + (λγ)²δ(t+2) + ...
+    #         gae = delta + self.gamma * lam * (1 - dones[t]) * gae
+    #         advantages[t] = gae
+        
+    #     # Returns = Advantages + Values (for critic target)
+    #     returns = advantages + values
+        
+    #     return advantages, returns
+    
+    def compute_gae(self, rewards, values, next_value, dones, gamma, lam=0.95):
+        """
+        Compute Generalized Advantage Estimation (GAE) over an ordered rollout.
         """
         advantages = np.zeros(len(rewards), dtype=np.float32)
-        gae = 0
-        
-        # Process in reverse order
-        next_value_t = next_value
+        gae = 0.0
+
         for t in reversed(range(len(rewards))):
-            if t == len(rewards) - 1:
-                next_value_t = next_value
-            else:
-                next_value_t = values[t + 1]
-            
-            # TD residual (TD error): δ = r + γV(s') - V(s)
-            delta = rewards[t] + self.gamma * next_value_t * (1 - dones[t]) - values[t]
-            
-            # GAE: A(t) = δ(t) + (λγ)δ(t+1) + (λγ)²δ(t+2) + ...
-            gae = delta + self.gamma * lam * (1 - dones[t]) * gae
+            next_value_t = next_value if t == len(rewards) - 1 else values[t + 1]
+            delta = rewards[t] + gamma * next_value_t * (1 - dones[t]) - values[t]
+            gae = delta + gamma * lam * (1 - dones[t]) * gae
             advantages[t] = gae
-        
-        # Returns = Advantages + Values (for critic target)
+
         returns = advantages + values
-        
         return advantages, returns
-    
+
     def sample(self, batch_size):
         return random.sample(self.memory, batch_size)
     
+    def get_all(self):
+        return self.memory
+
     def __len__(self):
         return len(self.memory)
     

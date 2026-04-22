@@ -325,9 +325,8 @@ class MultiheadWorker:
         # Base Loss: L_base = E[(y^0 - Q^0)^2]
         loss_base = self.loss_fn(q_expected_base, q_target_base)
 
-        # Enhancement Loss: L_enh = E[ 1/4 * sum_tau( m_t * (y^tau - Q^tau)^2 ) ]
         # 1. Compute squared error element-wise
-        errors_enh = (q_expected_enh - q_target_enh) ** 2       # Shape: [Batch, 4]
+        errors_enh = (q_expected_enh - q_target_enh) ** 2
         
         # 3. Compute mean (implements the 1/4 sum and Expectation over batch)
         loss_enh = errors_enh.mean()
@@ -424,23 +423,6 @@ class BaseWorker:
             hidden_dim=cfg.hidden_dim_base_focus
         ).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
-
-        # MultiHead Version:
-        self.policy_net = MultiHeadQNetwork(
-            self.state_dim, 
-            self.action_dim, 
-            hidden_dim=cfg.hidden_dim_base_focus
-        ).to(self.device)
-
-        self.target_net = MultiHeadQNetwork(
-            self.state_dim, 
-            self.action_dim, 
-            hidden_dim=cfg.hidden_dim_base_focus
-        ).to(self.device)
-        self.target_net.load_state_dict(self.policy_net.state_dict())
-        self.lambda_dyn = getattr(cfg, "lambda_dyn", 0.1) 
-        self.aux_loss_fn = nn.MSELoss()
-        # End MultiHead Version
         
         if cfg.optimizer == "adam":
             self.optimizer = optim.Adam(self.policy_net.parameters(), lr=cfg.learning_rate)
@@ -459,7 +441,7 @@ class BaseWorker:
     def select_action(self, state):
         with torch.no_grad():
             state_t = torch.tensor(state, dtype=torch.float32).to(self.device).unsqueeze(0)
-            qvals, _ = self.policy_net(state_t)
+            qvals = self.policy_net(state_t)
 
         if self.exploration_strategy == "boltzmann":
             temperature = max(self.temperature_min, float(self.temperature))
@@ -479,7 +461,7 @@ class BaseWorker:
         if self.step % self.nb_interval == 0 and \
            len(self.buffer) >= self.batch_size:
             self.learn()
-            
+
     def learn(self):
         batch = self.buffer.sample(self.batch_size)
         s, a, r, ns, d = zip(*batch)
@@ -493,13 +475,13 @@ class BaseWorker:
         # 1. Standard DQN Target Calculation (using target net)
         with torch.no_grad():
             # Target net also returns a tuple, extract q-values
-            next_q_vals, _ = self.target_net(ns)
+            next_q_vals = self.target_net(ns)
             next_q = next_q_vals.max(1)[0]
             n_step_gamma = self.gamma
             q_target = r + n_step_gamma * next_q * (1.0 - d)
-            
+
         # ---------- expected ----------
-        q_expected = self.policy_net(s)[0].gather(1, a.unsqueeze(1)).squeeze(1)
+        q_expected = self.policy_net(s).gather(1, a.unsqueeze(1)).squeeze(1)
 
         loss = self.loss_fn(q_expected, q_target)
 
