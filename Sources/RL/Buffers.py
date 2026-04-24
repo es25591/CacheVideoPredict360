@@ -130,6 +130,44 @@ class RolloutBuffer:
             return self.memory
         return random.sample(self.memory, batch_size)
 
+    # def compute_gae(self, rewards, values, next_value, dones, lam=0.95):
+    #     """
+    #     Compute Generalized Advantage Estimation (GAE).
+
+    #     Args:
+    #         rewards: List of rewards from batch (shape: [batch_size])
+    #         values: List of state values from critic (shape: [batch_size])
+    #         next_value: Value of the next state (scalar)
+    #         dones: List of done flags (shape: [batch_size])
+    #         lam: GAE lambda parameter (0.95 is standard)
+
+    #     Returns:
+    #         advantages: GAE advantages (shape: [batch_size])
+    #         returns: TD targets for critic (shape: [batch_size])
+    #     """
+    #     advantages = np.zeros(len(rewards), dtype=np.float32)
+    #     gae = 0
+
+    #     # Process in reverse order
+    #     next_value_t = next_value
+    #     for t in reversed(range(len(rewards))):
+    #         if t == len(rewards) - 1:
+    #             next_value_t = next_value
+    #         else:
+    #             next_value_t = values[t + 1]
+
+    #         # TD residual (TD error): δ = r + γV(s') - V(s)
+    #         delta = rewards[t] + self.gamma * next_value_t * (1 - dones[t]) - values[t]
+
+    #         # GAE: A(t) = δ(t) + (λγ)δ(t+1) + (λγ)²δ(t+2) + ...
+    #         gae = delta + self.gamma * lam * (1 - dones[t]) * gae
+    #         advantages[t] = gae
+
+    #     # Returns = Advantages + Values (for critic target)
+    #     returns = advantages + values
+
+    #     return advantages, returns
+
     def compute_gae(self, rewards, values, next_value, dones, gamma, lam=0.95):
         """
         Compute Generalized Advantage Estimation (GAE) over an ordered rollout.

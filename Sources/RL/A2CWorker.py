@@ -45,8 +45,8 @@ class A2CWorker:
         self.action_temperature = float(getattr(cfg, "action_temperature", 1.0))
         self.random_action_prob = float(getattr(cfg, "random_action_prob", 0.0))
 
-        # self.buffer = RolloutBuffer(cfg.buffer_capacity)
-        self.buffer = NStepReplayBuffer(cfg.buffer_capacity, self.n_step, self.gamma)
+        self.buffer = RolloutBuffer(cfg.buffer_capacity)
+        # self.buffer = NStepReplayBuffer(cfg.buffer_capacity, self.n_step, self.gamma)
 
         self.network = A2CNetwork(
             state_dim=self.state_dim, 
@@ -133,20 +133,20 @@ class A2CWorker:
 
         # Get values for GAE computation
         with torch.no_grad():
-            value, _ = self.network(state)
-            value = value.squeeze()
+            val, _ = self.network(state)
+            val = val.squeeze()
             next_value, _ = self.network(next_state)
             next_value = next_value.squeeze()
 
         # Convert to numpy for GAE computation on ordered rollout transitions.
-        value_np = value.cpu().numpy()
-        next_value_np = next_value.cpu().numpy()
+        val_np = val.cpu().numpy()
+        nxt_val_np = next_value.cpu().numpy()
         reward_np = reward.cpu().numpy()
         done_np = done.cpu().numpy()
 
         # Compute GAE (Generalized Advantage Estimation)
         advantages_np, returns_np = self.buffer.compute_gae(
-            reward_np, value_np, next_value_np[-1], done_np, gamma=self.gamma, lam=self.gae_lambda
+            reward_np, val_np, nxt_val_np[-1], done_np, gamma=self.gamma, lam=self.gae_lambda
         )
 
         advantages = torch.FloatTensor(advantages_np).to(self.device)
@@ -159,11 +159,11 @@ class A2CWorker:
         # advantages = torch.clamp(advantages, -self.advantage_clip, self.advantage_clip)
 
         # --- Actor update with entropy regularization ---
-        value, log_prob, entropy = self.network(state, action)
+        val, log_prob, entropy = self.network(state, action)
 
         # Actor loss: policy gradient with entropy bonus for exploration
         actor_loss = - (log_prob * advantages.detach()).mean()
-        entropy_loss = -self.entropy_beta * entropy.mean()  # Negative because we want to maximize entropy
+        entropy_loss = -self.entropy_beta * entropy.mean()
         actor_total_loss = actor_loss + entropy_loss
 
         self.actor_optimizer.zero_grad()
@@ -172,9 +172,9 @@ class A2CWorker:
         self.actor_optimizer.step()
 
         # --- Critic update (MSE on TD target) ---
-        value, _ = self.network(state)
-        value = value.squeeze()
-        critic_loss = self.loss_fn(value, returns)
+        val, _ = self.network(state)
+        val = val.squeeze()
+        critic_loss = self.loss_fn(val, returns)
 
         self.critic_optimizer.zero_grad()
         critic_loss.backward()

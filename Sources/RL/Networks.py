@@ -364,10 +364,7 @@ class A2CSharedNetwork(nn.Module):
         self.action_dim = action_dim
 
         # Actor head: Outputs probabilities for each tile/action
-        self.actor = nn.Sequential(
-            nn.Linear(last_dim, action_dim),
-            nn.Softmax(dim=-1)
-        )
+        self.actor = nn.Linear(last_dim, action_dim)
         
         # Critic head: Outputs a single scalar value for the state
         self.critic = nn.Linear(last_dim, 1)
@@ -376,8 +373,10 @@ class A2CSharedNetwork(nn.Module):
         x = self.common(x)
 
         value = self.critic(x)
-        probs = self.actor(x)
+        logits = self.actor(x)
         
+        probs = F.softmax(logits, dim=-1)
+
         dist = torch.distributions.Categorical(probs=probs)
 
         if actions is not None:
@@ -386,29 +385,6 @@ class A2CSharedNetwork(nn.Module):
             return value, log_probs, entropy
 
         return value, dist.probs
-
-class LFUHeuristic:
-    def __init__(self, cache_size):
-        self.cache_size = cache_size
-        
-    def get_action(self, state):
-        y_l = state[2*self.cache_size + 1]        
-        x_l = y_l + state[self.cache_size:2*self.cache_size]
-
-        return int(np.argmin(y_l + x_l))
-
-    def get_heuristic_values(self, state):
-        cache_size = self.cache_size
-
-        y_s = state[2*cache_size]
-        y_l = state[2*cache_size + 1]
-        
-        x_s = y_s + state[:cache_size]
-        x_l = y_l + state[cache_size:2*cache_size]
-        
-        arg_max_l = np.argmin(x_l)
-        
-        return arg_max_l, x_l[arg_max_l]
 
 class A2CNetwork(nn.Module):
     def __init__(
@@ -449,7 +425,6 @@ class A2CNetwork(nn.Module):
             in_dim = dim
         critic_layers.append(nn.Linear(in_dim, 1))
         self.critic = nn.Sequential(*critic_layers)
-        
 
     def forward(self, x, action=None):
         value = self.critic(x)
@@ -466,6 +441,28 @@ class A2CNetwork(nn.Module):
 
         return value, dist.probs
 
+class LFUHeuristic:
+    def __init__(self, cache_size):
+        self.cache_size = cache_size
+        
+    def get_action(self, state):
+        y_l = state[2*self.cache_size + 1]        
+        x_l = y_l + state[self.cache_size:2*self.cache_size]
+
+        return int(np.argmin(y_l + x_l))
+
+    def get_heuristic_values(self, state):
+        cache_size = self.cache_size
+
+        y_s = state[2*cache_size]
+        y_l = state[2*cache_size + 1]
+        
+        x_s = y_s + state[:cache_size]
+        x_l = y_l + state[cache_size:2*cache_size]
+        
+        arg_max_l = np.argmin(x_l)
+        
+        return arg_max_l, x_l[arg_max_l]
 
 class A2CHeuNetwork(nn.Module):
     def __init__(
