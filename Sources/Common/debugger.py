@@ -1,5 +1,6 @@
 import csv
 import json
+import os
 import pickle
 import torch
 import numpy as np
@@ -171,32 +172,41 @@ class AgentDebugger:
         if format is None:
             format = 'json'
 
+        base_dir = os.path.dirname(filepath) or "."
+        base_name = os.path.basename(filepath)
+        os.makedirs(base_dir, exist_ok=True)
+
         serializable_data = {
             key: [self._to_python(v) for v in values]
             for key, values in self.data.items()
         }
-        
+
         if format == 'json':
             # Combine explicitly provided separate_keys with any keys containing "action"
             separate_keys_set = set(separate_keys or [])
             action_keys = {k for k in serializable_data.keys() if 'action' in str(k).lower()}
             separate_keys_set.update(action_keys)
-            
+
+            actions_dir = os.path.join(base_dir, "actions")
+            other_metrics_dir = os.path.join(base_dir, "other_metrics")
+            os.makedirs(actions_dir, exist_ok=True)
+            os.makedirs(other_metrics_dir, exist_ok=True)
+
             if separate_keys_set:
                 # Save all separate_keys to one file
                 separate_data = {k: serializable_data[k] for k in separate_keys_set if k in serializable_data}
                 if separate_data:
-                    with open(f"{filepath}_actions.json", "w") as f:
+                    with open(os.path.join(actions_dir, f"{base_name}_actions.json"), "w") as f:
                         json.dump(separate_data, f, indent=2)
-                
+
                 # Save remaining keys to main file
                 remaining_data = {k: v for k, v in serializable_data.items() if k not in separate_keys_set}
                 if remaining_data:
-                    with open(f"{filepath}.json", "w") as f:
+                    with open(os.path.join(other_metrics_dir, f"{base_name}.json"), "w") as f:
                         json.dump(remaining_data, f, indent=2)
             else:
                 # Original behavior: save all to one file
-                with open(f"{filepath}.json", "w") as f:
+                with open(os.path.join(other_metrics_dir, f"{base_name}.json"), "w") as f:
                     json.dump(serializable_data, f, indent=2)
 
         elif format == 'csv':    
