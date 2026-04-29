@@ -152,11 +152,11 @@ class A2CWorker:
         advantages = torch.FloatTensor(advantages_np).to(self.device)
         returns = torch.FloatTensor(returns_np).to(self.device)
 
-        # Normalize and clip advantages to stabilize actor updates.
-        advantage_mean = advantages.mean()
-        advantage_std = advantages.std().clamp_min(1e-8)
-        advantages = (advantages - advantage_mean) / advantage_std
-        advantages = torch.clamp(advantages, -self.advantage_clip, self.advantage_clip)
+        # # Normalize and clip advantages to stabilize actor updates.
+        # advantage_mean = advantages.mean()
+        # advantage_std = advantages.std().clamp_min(1e-8)
+        # advantages = (advantages - advantage_mean) / advantage_std
+        # advantages = torch.clamp(advantages, -self.advantage_clip, self.advantage_clip)
 
         # --- Actor update with entropy regularization ---
         val, log_prob, entropy = self.network(state, action)
@@ -164,7 +164,7 @@ class A2CWorker:
         # Actor loss: policy gradient with entropy bonus for exploration
         actor_loss = - (log_prob * advantages.detach()).mean()
         entropy_loss = -self.entropy_beta * entropy.mean()
-        actor_total_loss = actor_loss + entropy_loss
+        # actor_total_loss = actor_loss + entropy_loss
 
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
@@ -199,6 +199,8 @@ class A2CWorker:
     def update_epsilon(self):
         self.buffer.clear()
         self.step = 0
+        
+        self.debugger.log('lr', self.scheduler.get_last_lr()[0])
         
     def __str__(self):
         return (
