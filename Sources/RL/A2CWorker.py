@@ -29,8 +29,8 @@ class A2CWorker:
 
         self.step = 0
         self.n_step = cfg.n_step
-        self.state_dim = cfg.state_dim_base_focus
-        self.action_dim = cfg.action_dim_base_focus
+        self.state_dim = cfg.state_dim
+        self.action_dim = cfg.action_dim
         self.hidden_dims = cfg.hidden_dims
 
         self.epsilon = 0.0 
