@@ -134,9 +134,8 @@ class A2CWorker:
         # Get values for GAE computation
         with torch.no_grad():
             val, _ = self.network(state)
-            val = val.squeeze()
             next_value, _ = self.network(next_state)
-            next_value = next_value.squeeze()
+            val, next_value = val.squeeze(), next_value.squeeze()
 
         # Convert to numpy for GAE computation on ordered rollout transitions.
         val_np = val.cpu().numpy()
