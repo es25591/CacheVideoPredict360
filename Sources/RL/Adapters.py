@@ -223,7 +223,6 @@ class NetworkAdapter:
 
     def reset(self):
         obs, info = self.env.reset()
-        self.features.reset_history()
 
         return obs, info
     
